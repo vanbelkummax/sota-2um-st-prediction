@@ -58,11 +58,13 @@
   - **Needed by**: Month 1 Week 2
 
 ### Datasets
-- [ ] **HEST-1K benchmark dataset**
-  - **Why**: Validate methods on external benchmark
-  - **Access**: Dataset request form at hest-benchmark.org
-  - **Alternative**: Using our Visium HD only (acceptable for now)
-  - **Needed by**: Month 5 Week 3 (for generalization testing)
+- [ ] **HEST-1K benchmark dataset** (NeurIPS 2024)
+  - **Why**: Validate methods on 11 foundation model benchmark (9 organs, 8 cancer types)
+  - **What**: 50 HVG gene expression prediction tasks at 112×112 μm @ 0.5 μm/px
+  - **Access**: GitHub https://github.com/mahmoodlab/HEST
+  - **Alternative**: Using our Visium HD CRC only (acceptable for Phase 1)
+  - **Needed by**: Month 5 Week 3 (for cross-tissue generalization testing)
+  - **Note**: NeurIPS 2024 Spotlight paper, comprehensive pathology FM benchmark
 
 ---
 
