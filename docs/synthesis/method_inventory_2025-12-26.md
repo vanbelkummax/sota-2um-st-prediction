@@ -142,6 +142,30 @@ This document catalogs all methods discovered for predicting spatial transcripto
 - **Priority**: **HIGH** - diffusion approach established
 - **Borrowed From**: Image restoration / Super-resolution
 
+### STPath (2025) ⭐ FOUNDATION MODEL - GENERATIVE PARADIGM
+- **Paper**: npj Digital Medicine 2025
+- **GitHub**: Search pending (likely released)
+- **Key Innovation**: **Generative Foundation Model for Spatial Transcriptomics**
+- **Scale**: Pretrained on **~1,000 WSIs** paired with spatial transcriptomes across **17 organs**
+  - Training corpus: **~4 million spatial spots** from combined public datasets
+- **Architecture**:
+  - Geometry-aware Transformer (attends across all spots in whole slide)
+  - **Masked Gene Modeling**: Masks gene expression at some locations, predicts from image + context
+  - Incorporates metadata (organ type, platform modality) as inputs
+- **Resolution**: Can predict **~39,000 genes** at spot/cell level without fine-tuning
+- **Paradigm**: Zero-shot "virtual sequencing" foundation model (like GPT for spatial biology)
+- **Why Critical**:
+  - First true foundation model for H&E → RNA
+  - Generalizes across tissues and sequencing platforms
+  - Enables virtual sequencing for any archived pathology slide
+- **Priority**: **CRITICAL** - paradigm-defining foundation model
+- **Use Cases**:
+  - Zero-shot gene prediction on new slides
+  - Imputation of missing spatial spots
+  - Survival prediction as transfer task
+- **Borrowed From**: Foundation models (GPT-style masked modeling)
+- **User Insight**: "A model that can predict transcriptomes for any tissue, at any resolution, without retraining"
+
 ---
 
 ## Tier 1: High Priority (Claims 2μm/Subcellular + Code Available)
@@ -239,6 +263,62 @@ This document catalogs all methods discovered for predicting spatial transcripto
 - **Resolution**: Cell-level/subcellular
 - **Priority**: **MEDIUM** - alignment approach
 - **Borrowed From**: Multi-modal contrastive learning
+
+### SciSt (2024) ⭐ BIOLOGICAL PRIOR INJECTION
+- **Paper**: Briefings in Bioinformatics 2024
+- **GitHub**: Not publicly released, similar to sCellST approach
+- **Key Innovation**: **Single-cell reference-informed framework**
+- **Architecture**:
+  - Step 1: Cell segmentation + counting (Hover-Net cell detector)
+  - Step 2: Construct "Initial Expression (IE)" vector by weighting canonical gene profiles from scRNA atlas
+  - Step 3: Dual encoders (ResNet34 + self-attention for image, MLP for IE)
+  - Step 4: Fusion decoder refines gene prediction
+- **Why Critical**: **Uses single-cell reference as biological prior** ("prompt engineering" for spatial biology)
+- **Performance**: Outperformed HisToGene and THItoGene on HER2+ breast cancer (higher Pearson correlation)
+- **Resolution**: Spot-level (55μm), adaptable to subcellular
+- **Priority**: **HIGH** - biological grounding significantly boosts accuracy
+- **User Insight**: "By using single-cell reference prototypes as a 'prompt,' SciSt provides a biologically grounded prior"
+- **Borrowed From**: Few-shot learning + biological knowledge injection
+
+### DANet (2025) ⭐ DYNAMIC ALIGNMENT
+- **Paper**: Bioinformatics 2025 (OUP)
+- **GitHub**: Available on GitHub
+- **Key Innovation**: **Dynamic Alignment Network with novel architectural components**
+- **Architecture**:
+  - **Densely connected CNN**: Captures intricate cellular details (preserves local info better than plain CNN)
+  - **State-space model module**: Treats gene expression as sequence, models gene-gene dependencies
+  - **Residual Kolmogorov-Arnold Network (RKAN)**: Learnable activation function for bimodal alignment
+    - Dynamically adjusts how image features map to gene features during contrastive training
+- **Performance**: ~20% gains in gene correlation metrics on public datasets
+- **Datasets**: GSE240429 (human brain Visium), HER2+ breast cancer
+- **Why Critical**: Novel activation learning (RKAN) for cross-modal alignment
+- **Resolution**: Spot-level, adaptable
+- **Priority**: **HIGH** - architectural innovation (RKAN) transferable to other methods
+- **Borrowed From**: Kolmogorov-Arnold representation theorem + residual connections
+
+### PRTS (2025) ⭐ ZERO-INFLATION HANDLING
+- **Paper**: Science China Life Sciences 2025
+- **GitHub**: Check PMC article for availability
+- **Key Innovation**: **Two-head loss for sparse single-cell data**
+- **Architecture**:
+  - **Binary head**: Predicts whether gene is expressed at all (addresses dropout)
+  - **Continuous head**: Predicts expression level if gene is present
+- **Why Critical**: Explicitly tackles **zero-inflation** in high-resolution platforms (2μm bins)
+- **Problem Solved**: At 2μm, most bins have zero counts for most genes (capture stochasticity, not biology)
+- **Resolution**: Single-cell spatial transcriptomic maps
+- **Priority**: **HIGH** - critical for handling 2μm sparsity
+- **User Insight**: "Addresses zero-inflation in high-resolution platforms by using a two-head loss"
+- **Borrowed From**: Zero-inflated statistical models (ZINB, hurdle models)
+
+### STMCL (2025) - CONTRASTIVE MULTI-SLICE
+- **Paper**: Methods 2025
+- **GitHub**: Search pending
+- **Key Innovation**: **Inferring multi-slice spatial gene expression via contrastive learning**
+- **Architecture**: Contrastive framework for aligning expression across serial sections
+- **Why Critical**: Handles 3D reconstruction / serial section alignment
+- **Resolution**: Multi-slice integration
+- **Priority**: **MEDIUM** - useful for 3D spatial reconstruction (Month 5+)
+- **Borrowed From**: Contrastive learning + cross-slice alignment
 
 ---
 
@@ -504,6 +584,145 @@ Based on design document list, still need to find:
 - **Input**: Large context patch (256×256 px, ~100+ μm) - NOT just 2μm crop
 - **Architecture**: Vision Transformer OR Hierarchical CNN
 - **Output**: Dense prediction map (pixel-wise or 2μm bin-wise) where center pixel inferred from surrounding context
+
+---
+
+## Tier 6: Cross-Disciplinary Techniques (Mathematical Isomorphisms)
+
+**Source**: Project Aether strategic analysis - identifying mathematical parallels from remote sensing, medical imaging, and computer vision
+
+### Remote Sensing: Hyperspectral Pansharpening
+
+**The Isomorphism**:
+- **Remote Sensing**: Panchromatic image (high spatial, low spectral) + Hyperspectral image (low spatial, high spectral) → Fused high-res hyperspectral
+- **Our Domain**: H&E (high spatial, 3 channels) + Visium (low spatial, 20K genes) → Fused high-res gene expression
+
+#### HyperPNN (Hyperspectral Pansharpening Neural Network)
+- **Paper**: IEEE Transactions on Geoscience and Remote Sensing
+- **GitHub**: Search "HyperPNN" + author names from papers
+- **Key Innovation**: Spectral predictive branch - predicts high-level spectral ratios from high-res image
+- **Adaptation**: Predict "transcriptomic residuals" (how cell deviates from neighborhood mean)
+- **Priority**: MEDIUM - architectural inspiration for attention mechanisms
+- **Status**: Conceptual transfer, not direct code reuse
+
+#### HSpeNet (Hyperspectral Network)
+- **Paper**: Remote sensing literature
+- **GitHub**: Search "HSpeNet pansharpening"
+- **Key Innovation**: **Dual-Attention Fusion Block (DAFB)**
+  - Spatial Attention: Identifies "where" (nuclei vs stroma)
+  - Spectral Attention: Identifies "which genes" correlate with textures
+- **Adaptation**: Replace Cross-Attention in Stem with DAFB layers
+  - H&E embedding = "PAN" input
+  - Gene embeddings = "HS" input
+  - Enforces: Gene variance must be grounded in morphological variance
+- **Priority**: HIGH - direct architectural component for "Clean Frankenstein"
+- **User Insight**: "Spatial-Spectral Attention to attend to spatial textures and correlate them with spectral bands"
+
+### Medical Imaging: Implicit Neural Representations (INRs)
+
+#### STINR (Spatial Transcriptomics via Implicit Neural Representation)
+- **Paper**: "Deciphering Spatial Transcriptomics via Implicit Neural Representation"
+- **GitHub**: Search for STINR implementations
+- **Key Innovation**: Models gene expression as continuous function f(x,y) → gene vector
+  - Parametrized by MLP (Multilayer Perceptron)
+  - Provides "infinite resolution" - query at any (x,y) coordinate
+- **Adaptation**: **Image-Guided INR** - condition MLP on both coordinates AND image features I(x,y)
+  - Similar to Local Implicit Image Functions (LIIF) in computer vision
+  - Use as decoder: Encoder extracts latent grid → INR queries at ENACT cell centroids
+- **Priority**: HIGH - solves spatial discontinuity (point cloud of cells vs fixed pixel grid)
+- **Benefits**:
+  - Decouples image resolution from prediction resolution
+  - Train on Visium HD, deploy for single-cell prediction
+  - 3D reconstruction: Stack sections, query continuous volume
+
+#### SUICA (Spatial Unsupervised Image-based Clustering and Analysis)
+- **Paper**: Related to STINR, verify exact method
+- **Key Innovation**: INR for spatial clustering
+- **Priority**: LOW - STINR more relevant for our use case
+
+#### LIIF (Local Implicit Image Functions)
+- **Paper**: Computer vision (CVPR 2021)
+- **GitHub**: https://github.com/yinboc/liif
+- **Key Innovation**: Learn continuous image representation, super-resolution at arbitrary scales
+- **Adaptation**: Template for image-guided INR decoder in our architecture
+- **Priority**: MEDIUM - reference implementation for INR architecture
+
+#### JIIF (Joint Implicit Image Function)
+- **Paper**: MRI super-resolution literature
+- **Key Innovation**: Continuous 3D volume representation, interpolate between slices
+- **Adaptation**: Future 3D reconstruction (stack H&E sections, predict continuous ST volume)
+- **Priority**: LOW (Month 5+) - for 3D spatial reconstruction
+
+### Computer Vision: Continuous Representations
+
+#### NeRF-style Approaches
+- **Concept**: Neural Radiance Fields - continuous 3D scene representation
+- **Adaptation**: PixNet appears to use similar paradigm (dense continuous gene map)
+- **Priority**: LOW - PixNet already captures this approach in Tier 0
+
+---
+
+## Tier 7: Evaluation Frameworks and Tools
+
+### scIB-E (Single-cell Integration Benchmarking - Extended)
+- **Paper**: Nature Methods (original scIB), verify scIB-E extension
+- **GitHub**: https://github.com/theislab/scib (search for extended metrics)
+- **Purpose**: **Biological Conservation Metrics**
+  - Beyond correlation - does model preserve cell types and states?
+- **Metrics**:
+  - **Adjusted Rand Index (ARI)**: Cluster agreement with ground truth
+  - **Normalized Mutual Information (NMI)**: Information shared between clusterings
+  - **Local Inverse Simpson's Index (LISI)**: Local diversity/mixing
+  - **Silhouette Score**: Cluster separation on cell types
+- **Implementation**: Use `scib-metrics` Python library
+- **Priority**: **CRITICAL for Day 0-1** - defines evaluation harness
+- **User Insight**: "Ultimate test is whether predicted expression clusters correctly"
+
+### POT (Python Optimal Transport)
+- **GitHub**: https://github.com/PythonOT/POT
+- **Purpose**: **Wasserstein Distance / Earth Mover's Distance**
+- **Why Critical**:
+  - PCC/SSIM punish spatial shifts harshly (B-cell 10µm away = complete mismatch)
+  - Wasserstein recognizes nearby cells, assesses geometrically appropriate penalty
+- **Use Cases**:
+  - Loss function: Sinkhorn Divergence for training
+  - Evaluation: Wasserstein distance between predicted/true distributions
+- **Implementation**: `ot.sinkhorn()`, `ot.emd()`
+- **Priority**: **CRITICAL for Day 0-1** - core evaluation metric
+- **User Insight**: "OT measures 'effort' to transform predicted distribution into ground truth"
+
+### SpatialQC (Spatial Fidelity Metrics)
+- **Purpose**: Spatial pattern validation beyond per-pixel metrics
+- **Metrics**:
+  - Spatially Variable Gene (SVG) recovery
+  - Spatial autocorrelation (Moran's I)
+  - Cell-type spatial distribution
+- **Priority**: MEDIUM - complementary to scIB-E
+
+---
+
+## Mathematical Formulations (from Aether Report)
+
+### DeepSet (MIL Architecture)
+```
+f(X) = ρ(Σ_{x∈X} φ(x))
+```
+- X = set of cells in region
+- φ = encoder network (per cell)
+- ρ = decoder network (per spot)
+- Summation ensures permutation invariance
+
+### Diffusion Model (Stem)
+- Problem: p(y|x) is multimodal (same morphology → multiple states)
+- Regression: minimizes ||ŷ - y||² → converges to E[y|x] (conditional mean = blur)
+- Diffusion: learns distribution p(y|x) itself, samples from manifold of valid states
+
+### Optimal Transport Loss
+- Wasserstein distance W(P,Q) = "effort" to transform distribution P into Q
+- Sinkhorn Divergence: differentiable approximation for training
+- Better than MSE for sparse, discrete count data
+
+---
 
 ### Optimized Execution Order (User-Recommended)
 
