@@ -94,6 +94,12 @@
 - [ ] Select top 5-10 for Month 4 architecture design
 - [ ] Output: Updated `docs/hypotheses/BACKLOG.md`
 
+### Negative Controls (run alongside Month 3 ablations)
+- [ ] Label shuffle control (SSIM should collapse)
+- [ ] Spatial jitter control (SSIM should drop with misalignment)
+- [ ] Random encoder baseline (SSIM << baseline)
+- [ ] Smooth random field control (no biological pattern)
+
 ---
 
 ## Month 4: Novel Architecture (Weeks 13-16)
@@ -121,15 +127,15 @@
 ## Month 5: Optimization + Validation (Weeks 17-20)
 
 ### Week 17-18: Hyperparameter Optimization
+- [ ] Nested CV tuning per outer fold (no test leakage)
 - [ ] Grid search: learning rate, decoder depth, graph k-neighbors
-- [ ] Train on P1+P2, test on P5
 - [ ] Budget: ~15 configurations
 - [ ] Output: `configs/best_config.yaml`
 
 ### Week 19: Full Cross-Validation
-- [ ] 3-fold LOOCV (all patient combinations)
-- [ ] SSIM, PCC @ 2μm, per-gene, per-category metrics
-- [ ] Statistical tests (paired t-test)
+- [ ] 3-fold LOOCV with nested-tuned hyperparameters
+- [ ] SSIM, Pearson/Spearman per gene, per-category metrics
+- [ ] Statistical tests (hierarchical bootstrap, report CI)
 - [ ] Output: `results/month5/full_validation_results.csv`
 
 ### Week 20: Robustness Testing
@@ -137,6 +143,7 @@
 - [ ] Per-gene-category analysis
 - [ ] Failure mode analysis
 - [ ] Component ablation study
+- [ ] External CRC validation (Ken Lau cohort) if resolution compatible
 - [ ] Output: `docs/analysis/robustness_analysis.md`
 
 ---
@@ -166,6 +173,7 @@
 - [ ] Public GitHub repo
 - [ ] HuggingFace weights upload
 - [ ] Zenodo dataset upload
+- [ ] Apply for HEST-1K access (note limitations if pending)
 
 ---
 

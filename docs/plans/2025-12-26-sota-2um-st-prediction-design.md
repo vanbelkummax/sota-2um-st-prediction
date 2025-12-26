@@ -19,6 +19,8 @@
 
 **Target Outcome**:
 - Novel architecture achieving >0.60 SSIM at 2μm
+- **Primary claim scope**: Best performance for Visium HD CRC at 2μm on 50-gene panel
+- **Conditional claims**: Generalization only if validated on external cohorts/platforms
 - Two publications: (1) Methods paper, (2) Benchmark paper
 - Open-source code, pretrained weights, benchmark dataset
 - Complete understanding of what drives 2μm performance
@@ -42,8 +44,9 @@
 6. [Code & Weight Archaeology](#6-code--weight-archaeology)
 7. [Resource Acquisition Pipeline](#7-resource-acquisition-pipeline)
 8. [Month 4-6: Novel Architecture + Publications](#8-month-4-6-novel-architecture--publications)
-9. [Success Metrics](#9-success-metrics)
-10. [Risk Mitigation](#10-risk-mitigation)
+9. [Data Governance & Quality Control](#9-data-governance--quality-control)
+10. [Success Metrics](#10-success-metrics)
+11. [Risk Mitigation](#11-risk-mitigation)
 
 ---
 
@@ -74,7 +77,7 @@
 /home/user/sota-2um-st-prediction/          # Main repo (git tracked)
 /home/user/work/sota-2um-st-prediction/     # Results (persistent, ext4)
 /home/user/Desktop/SESSION_*.md             # Session summaries (quick ref)
-/home/user/docs/plans/                      # Design docs (this file)
+/home/user/sota-2um-st-prediction/docs/plans/ # Design docs (this file)
 ```
 
 ### Cross-Session Workflow
@@ -90,7 +93,7 @@
 
 ```bash
 # 1. Read master plan
-cat /home/user/docs/plans/2025-12-26-sota-2um-st-prediction-design.md
+cat /home/user/sota-2um-st-prediction/docs/plans/2025-12-26-sota-2um-st-prediction-design.md
 
 # 2. Read latest session summary
 cat $(ls -t /home/user/Desktop/SESSION_*.md | head -1)
@@ -265,6 +268,12 @@ git push origin main
 - ✅ Frozen encoders > fine-tuned (3-patient dataset too small)
 - ✅ MSE works fine without softplus (Poisson unnecessary)
 - ✅ Prov-GigaPath > Virchow2 at 2μm (+3.7%)
+
+**Negative Control Experiments** (validate biological signal):
+1. **Label shuffle**: permute gene labels → SSIM should collapse
+2. **Spatial jitter**: random coordinate offsets → SSIM should drop sharply
+3. **Random encoder**: random-initialized ViT → SSIM far below baseline
+4. **Smooth random fields**: synthetic smooth targets → low SSIM, no biological pattern
 
 ### Field Assumptions to Question
 
@@ -656,7 +665,10 @@ Quick test on P5 (held-out):
 
 **Week 17-18: Hyperparameter Optimization**
 
-Grid search on P1+P2, test P5:
+Nested CV (no test leakage):
+- For each **outer LOOCV fold**, perform inner tuning on the two training patients
+- Inner loop: train on Patient A, validate on Patient B; swap and average
+- Select hyperparameters per fold, then retrain on both training patients
 - Learning rate (1e-4, 5e-5, 1e-3)
 - Decoder depth (1, 2, 4 layers)
 - Graph k-neighbors (4, 8, 16)
@@ -666,14 +678,15 @@ Budget: ~10-15 configs × 2 hours = 1.5 days GPU time
 
 **Week 19: Full Cross-Validation**
 
-3-fold LOOCV with best config:
+3-fold LOOCV with nested-tuned hyperparameters (final evaluation only):
 - Fold 1: Train P1+P2, test P5
 - Fold 2: Train P1+P5, test P2
 - Fold 3: Train P2+P5, test P1
+- Report per-fold results and variance; do not reuse test folds for tuning
 
 **Metrics**:
 - SSIM @ 2μm (primary)
-- PCC @ 2μm (secondary)
+- Per-gene Pearson r + Spearman ρ (secondary)
 - Per-gene, per-category analysis
 
 **Comparisons**:
@@ -687,6 +700,7 @@ Budget: ~10-15 configs × 2 hours = 1.5 days GPU time
 - Per-gene-category analysis
 - Failure mode analysis (which genes fail?)
 - Component ablation study
+- External CRC validation (Ken Lau cohort) if resolution compatible
 
 **Output**: `results/month5/full_validation_results.csv`
 
@@ -745,22 +759,90 @@ sota-2um-st-prediction/
 - Code → GitHub (public)
 - Weights → HuggingFace
 - Dataset → Zenodo
+- Apply for HEST-1K access (note in limitations if pending)
 
 ---
 
-## 9. Success Metrics
+## 9. Data Governance & Quality Control
+
+### Data Governance
+- **Data source**: 10x Genomics Visium HD CRC (public, de-identified)
+- **IRB/ethics**: Public data; no additional IRB required for computational analysis
+- **Data use**: Follow 10x terms; do not redistribute raw data, only derived features/predictions
+
+### Quality Control Pipeline
+
+**Slide-Level QC (pre-analysis)**:
+1. Tissue detection: remove background bins (e.g., low UMI count < 10)
+2. Spot outliers: flag abnormal UMI distribution (z-score > 3)
+3. Visual inspection: check H&E for folds, tears, staining artifacts
+
+**Registration QC (critical at 2μm)**:
+1. Alignment validation: overlay H&E patches on spatial coordinates
+2. Manual inspection: 10 random patches per patient
+3. Misalignment threshold: flag >10μm (5 bins at 2μm)
+4. Jitter stress test: perturb coordinates at ±2, ±5, ±10, ±20μm
+   - Expected: SSIM degrades with jitter; if not, model ignores spatial info
+
+**Tissue Masking**:
+- Use 10x tissue detection or simple CNN segmentation
+- Exclude bins outside tissue boundary
+- Report % of bins excluded per patient
+
+**Failure Mode Analysis**:
+- Map low-SSIM regions per patient
+- Document failure patterns (necrosis, edges, artifacts)
+
+---
+
+## 10. Success Metrics
 
 ### Technical Metrics
 
 **Primary**:
 - SSIM @ 2μm > 0.60 (beat current 0.5699)
-- Statistical significance (p < 0.05 vs baseline, paired t-test)
-- Generalizes across all 3 patients
+- Report mean + median + per-category means (epithelial, immune, stromal)
+- Generalizes across all 3 patients (report per-patient variance)
+- If per-patient variance > 0.10 SSIM, treat as heterogeneity (no broad claim)
 
 **Secondary**:
-- PCC @ 2μm > 0.40
+- Per-gene Pearson r and Spearman ρ (spot-level correlations)
+- Count of genes with r > 0.5 and r > 0.8
 - Per-category improvements (epithelial, immune, stromal)
-- Genes with r > 0.8 count increases
+
+### Metric Definitions
+
+**SSIM @ 2μm**:
+- Per-gene SSIM between predicted vs ground-truth 2D expression maps
+- Unit of analysis: 128x128 spatial map per gene per patient
+- Standard SSIM window (11×11 Gaussian)
+- Aggregation: mean (primary), median, per-category means
+
+**Gene-Centric Metrics**:
+- Pearson r and Spearman ρ across all spots per gene
+- Report distribution across 50 genes (histograms + summary stats)
+
+**Biological Validity Metrics**:
+- Marker concordance (e.g., EPCAM vs VIM anticorrelation)
+- Gene-set/pathway alignment with CRC biology (Wnt, immune infiltration)
+
+### Statistical Testing (Small-n Safe)
+
+- Use **hierarchical bootstrap** (patient → gene → spot) for confidence intervals
+- Report effect size and 95% CI, avoid p-values with n=3
+- Primary comparison: model vs baseline SSIM difference with CI
+
+### Claim Scope (Pre-Registered)
+
+- **Primary claim**: Best performance on Visium HD CRC at 2μm, 50-gene panel
+- **Conditional claims**:
+  - External CRC cohort → “generalizes across CRC cohorts”
+  - HEST-1K or multi-tissue → “generalizes across tissues”
+  - Full transcriptome → “scales to 18K genes”
+- **Thresholds**:
+  - Minimum viable: SSIM > 0.60 and 95% CI excludes 0.5699
+  - Strong: SSIM > 0.65 + external cohort validation
+  - Exceptional: SSIM > 0.70 + >=2 tissue types
 
 ### Research Metrics
 
@@ -791,14 +873,14 @@ sota-2um-st-prediction/
 
 ---
 
-## 10. Risk Mitigation
+## 11. Risk Mitigation
 
 ### Technical Risks
 
 | Risk | Likelihood | Mitigation |
 |------|------------|------------|
 | GHIST too memory-intensive | Medium | Use gradient checkpointing, FP16, or skip |
-| Poor generalization | Low | LOOCV ensures unbiased evaluation |
+| Poor generalization | Low | Nested CV + per-patient reporting reduce bias |
 | Encoder access issues | Medium | Apply early, have backup (ImageNet) |
 | Novel architecture fails | Medium | Have fallback (ensemble of best existing) |
 
@@ -827,7 +909,7 @@ sota-2um-st-prediction/
 ### Session Start
 ```bash
 # 1. Load plan
-cat /home/user/docs/plans/2025-12-26-sota-2um-st-prediction-design.md
+cat /home/user/sota-2um-st-prediction/docs/plans/2025-12-26-sota-2um-st-prediction-design.md
 
 # 2. Load latest summary
 cat $(ls -t /home/user/Desktop/SESSION_*.md | head -1)
