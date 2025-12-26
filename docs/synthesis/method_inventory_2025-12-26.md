@@ -662,6 +662,157 @@ Based on design document list, still need to find:
 
 ---
 
+---
+
+## Tier 8: Datasets and Benchmarks (Critical Infrastructure)
+
+### HEST-1k ⭐ PRIMARY BENCHMARK
+- **Paper**: arXiv 2406.16192
+- **HuggingFace**: https://hf.co/papers/2406.16192
+- **What**: Multimodal dataset integrating ST + histology across tissues
+- **Why Critical**: Gold standard benchmark for cross-tissue generalization
+- **Scale**: 1,000+ ST-WSI pairs, 11 foundation model benchmarks
+- **Tasks**: 50 HVG prediction at 112×112 μm @ 0.5 μm/px
+- **Coverage**: 9 organs, 8 cancer types
+- **Use Case**: Month 5 external validation (cross-tissue generalization)
+- **Status**: USER_ACCESS_NEEDED.md (🟡 MEDIUM priority)
+- **Priority**: **CRITICAL** for proving generalization beyond CRC
+
+### STimage-1K4M - SUB-TILE SCALE DATASET
+- **Paper**: arXiv 2406.06393
+- **HuggingFace**: https://hf.co/papers/2406.06393
+- **What**: Histopathology image–gene expression at sub-tile scale
+- **Why Relevant**: Dense supervision paradigm (vs sparse spot-level)
+- **Scale**: 1K images, 4M sub-tiles
+- **Use Case**: Understanding fine-grained supervision strategies
+- **Priority**: MEDIUM - conceptual inspiration for 2μm dense prediction
+
+### HESCAPE ⭐ BATCH EFFECTS BENCHMARK
+- **Paper**: arXiv 2508.01490
+- **HuggingFace**: https://hf.co/papers/2508.01490
+- **What**: Large-scale cross-modal learning benchmark
+- **Why CRITICAL**: **Explicitly highlights batch effects as central obstacle**
+- **Insight**: Most methods fail across sites/scanners/stains
+- **Use Case**: Batch correction strategies, eval protocol design
+- **Priority**: **HIGH** - batch effects will kill generalization
+
+---
+
+## Tier 9: Foundation Models and Backbones (Extended)
+
+### Threads ⭐ MOLECULAR-DRIVEN FOUNDATION MODEL
+- **Paper**: arXiv 2501.16652
+- **HuggingFace**: https://hf.co/papers/2501.16652
+- **What**: Molecular-driven slide foundation model
+- **Training**: Multimodal (genomics + transcriptomics signals)
+- **Why Different**: Explicitly trained with molecular supervision (not just images)
+- **Use Case**: May provide better gene-aware features than pure vision FMs
+- **Priority**: **HIGH** - molecular supervision aligns with our task
+- **Status**: Check if weights available
+
+### mSTAR - MULTIMODAL KNOWLEDGE-ENHANCED FM
+- **Paper**: arXiv 2407.15362
+- **HuggingFace**: https://hf.co/papers/2407.15362
+- **What**: Whole-slide foundation model including gene expression
+- **Training**: Multi-task across 100+ pathology tasks
+- **Why Relevant**: Already seen gene expression during training
+- **Use Case**: Transfer learning from gene-aware pretraining
+- **Priority**: MEDIUM-HIGH
+
+### PathOrchestra - 100+ TASK FM
+- **Paper**: arXiv 2503.24345
+- **HuggingFace**: https://hf.co/papers/2503.24345
+- **What**: Foundation model trained on 100+ pathology tasks
+- **Why Relevant**: Transfer learning breadth, eval protocol ideas
+- **Use Case**: Understanding what tasks help ST prediction
+- **Priority**: MEDIUM
+
+### PAST ⭐ PATHOLOGY + scRNA FOUNDATION MODEL
+- **Paper**: arXiv 2507.06418
+- **HuggingFace**: https://hf.co/papers/2507.06418
+- **What**: Pathology + single-cell transcriptomes foundation model
+- **Capabilities**: Gene expression prediction + virtual staining
+- **Why Critical**: Directly trained for our task (H&E → genes)
+- **Priority**: **CRITICAL** - may be best pretrained backbone
+- **Status**: Check weights availability
+
+---
+
+## Tier 10: Direct Gene Expression Prediction Methods
+
+### hist2RNA ⭐ BASELINE + PITFALLS
+- **Paper**: arXiv 2304.04507
+- **HuggingFace**: https://hf.co/papers/2304.04507
+- **What**: Efficient architecture predicting gene expression from H&E
+- **Why Critical**: Documents common pitfalls and baseline approach
+- **Architecture**: CNN-based with spatial aggregation
+- **Use Case**: Baseline comparison, learn from mistakes
+- **Priority**: **HIGH** - lessons learned document
+
+### Gene-DML - DUAL-PATHWAY DISCRIMINATION
+- **Paper**: arXiv 2507.14670
+- **HuggingFace**: https://hf.co/papers/2507.14670
+- **What**: Dual-pathway multi-level discrimination
+- **Architecture**: Aligns morphology ↔ transcript representations
+- **Innovation**: Multi-level feature alignment (not just final layer)
+- **Priority**: HIGH - architectural idea for Clean Frankenstein
+
+### SToFM - SPATIAL TRANSCRIPTOMICS FM
+- **Paper**: arXiv 2507.11588
+- **HuggingFace**: https://hf.co/papers/2507.11588
+- **What**: Foundation model framing for spatial transcriptomics
+- **Innovation**: Multi-scale extraction at different resolutions
+- **Use Case**: Scale-handling strategies for 2μm
+- **Priority**: MEDIUM-HIGH
+
+---
+
+## Tier 11: Cross-Modal Alignment Methods
+
+### MIRROR ⭐ MODALITY ALIGNMENT + RETENTION
+- **Paper**: arXiv 2503.00374
+- **HuggingFace**: https://hf.co/papers/2503.00374
+- **What**: Multi-modal pathological self-supervised learning
+- **Key Insight**: **Don't destroy modality-specific signal during alignment**
+- **Problem Solved**: Naive contrastive learning collapses unique info
+- **Architecture**: Balanced alignment + retention objectives
+- **Priority**: **HIGH** - critical for cross-modal fusion
+- **User Insight**: "Modality alignment + retention (don't destroy modality-specific signal)"
+
+---
+
+## Tier 12: MIL and WSI Aggregation
+
+### Do MIL Models Transfer? ⭐ TRANSFER LEARNING STUDY
+- **Paper**: arXiv 2506.09022
+- **HuggingFace**: https://hf.co/papers/2506.09022
+- **Question**: Can I reuse pretrained MIL aggregators across organs/tasks?
+- **Answer**: Provides empirical evidence on MIL transfer
+- **Use Case**: Deciding whether to pretrain MIL on other data
+- **Priority**: **HIGH** - informs whether to use DeepSpot2Cell aggregator directly
+
+### MambaMIL - LONG-SEQUENCE MIL
+- **Paper**: arXiv 2403.06800
+- **HuggingFace**: https://hf.co/papers/2403.06800
+- **What**: State-space models for long-sequence WSI MIL
+- **Innovation**: Mamba architecture (linear complexity vs quadratic Transformer)
+- **Use Case**: If modeling lots of 2μm patches/spots
+- **Priority**: MEDIUM - efficiency gain for large slides
+
+---
+
+## Tier 13: Generative Models (Data Augmentation)
+
+### PixCell - DIFFUSION FOR HISTOPATHOLOGY
+- **Paper**: arXiv 2506.05127
+- **HuggingFace**: https://hf.co/papers/2506.05127
+- **What**: Diffusion-based generative foundation model for histopath
+- **Use Case**: Synthetic diversity, augmentation if data is bottleneck
+- **Priority**: LOW (we have 3 patients, synthetic won't help much)
+- **Future**: Useful for rare cell type augmentation
+
+---
+
 ## Tier 7: Evaluation Frameworks and Tools
 
 ### scIB-E (Single-cell Integration Benchmarking - Extended)
