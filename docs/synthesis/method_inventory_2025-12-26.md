@@ -813,6 +813,180 @@ Based on design document list, still need to find:
 
 ---
 
+## Tier 14: Robustness and Generalization Methods (Outside Disciplines)
+
+**Source**: Cross-disciplinary intelligence - domain adaptation, SSL, long-context, equivariance, uncertainty
+
+### A) Domain Adaptation and Test-Time Adaptation
+
+#### Test-Time Batch Statistics Calibration ⭐ CRITICAL FOR BATCH EFFECTS
+- **Paper**: arXiv 2110.04065
+- **HuggingFace**: https://hf.co/papers/2110.04065
+- **What**: Adapt batch normalization stats at inference to handle covariate shift
+- **Why Critical**: HESCAPE shows most methods fail across sites/scanners/stains
+- **Implementation**: Freeze encoder+head, recalculate BN stats per slide/batch
+- **Cost**: Cheap (no retraining), often strong
+- **Priority**: **CRITICAL** - addresses batch effects (our #1 generalization risk)
+- **Experiment**: TTA BN calibration per slide, measure cross-site performance recovery
+- **Timeline**: Month 5 Week 2 (external validation on HEST-1k)
+
+#### Source-Free Domain Adaptation
+- **Paper**: arXiv 2206.08009 (Balancing Discriminability and Transferability)
+- **HuggingFace**: https://hf.co/papers/2206.08009
+- **What**: Adapt without source data (privacy-relevant, can't pool slides)
+- **Priority**: MEDIUM - useful if HEST-1k inaccessible or privacy constraints
+
+### B) Optimal Transport Alignment (ALREADY INTEGRATED ✅)
+
+- ✅ **We have**: POT library, Wasserstein distance in SpatialEvaluator
+- ✅ **Using**: OT as evaluation metric + potential loss function
+
+**Additional OT Methods (if needed)**:
+
+#### InfoOT - Information Maximizing OT
+- **Paper**: arXiv 2210.03164
+- **HuggingFace**: https://hf.co/papers/2210.03164
+- **What**: OT + mutual information for better alignment
+- **Use Case**: If naive OT alignment insufficient
+- **Priority**: LOW (POT library sufficient for now)
+
+#### Unbalanced CO-Optimal Transport
+- **Paper**: arXiv 2205.14923
+- **HuggingFace**: https://hf.co/papers/2205.14923
+- **What**: Robust OT for heterogeneous/noisy measurements (batch effects)
+- **Priority**: MEDIUM - if batch effects dominate
+
+#### Graph Optimal Transport
+- **Paper**: arXiv 2006.14744
+- **HuggingFace**: https://hf.co/papers/2006.14744
+- **What**: Align graph structures (neighborhood relations)
+- **Priority**: LOW (we use spatial graphs, but standard OT sufficient)
+
+### C) Self-Supervised Pretraining (Leverage Unlabeled WSIs)
+
+#### MAE - Masked Autoencoders ⭐ HIGH PRIORITY
+- **Paper**: arXiv 2111.06377
+- **HuggingFace**: https://hf.co/papers/2111.06377
+- **What**: Masked image modeling (mask patches, reconstruct)
+- **Why Relevant**: We have tons of unlabeled H&E, SSL improves representation quality
+- **Implementation**: Pretrain patch encoder on unlabeled WSIs, fine-tune for ST
+- **Expected Gain**: Improves both in-domain accuracy and out-of-domain robustness
+- **Priority**: **HIGH** - strong empirical track record
+- **Timeline**: Month 2 Week 4 or Month 3 Week 1 (after baseline methods tested)
+
+#### MR-MAE - Mimic before Reconstruct
+- **Paper**: arXiv 2303.05475
+- **HuggingFace**: https://hf.co/papers/2303.05475
+- **What**: Improved MAE variant (mimic before reconstruct)
+- **Priority**: MEDIUM - if MAE chosen, try this variant
+
+#### BYOL - Bootstrap Your Own Latent
+- **Paper**: arXiv 2006.07733
+- **HuggingFace**: https://hf.co/papers/2006.07733
+- **What**: Non-contrastive SSL (stable, no negatives)
+- **Priority**: MEDIUM - alternative to MAE
+
+#### Barlow Twins
+- **Paper**: arXiv 2103.03230
+- **HuggingFace**: https://hf.co/papers/2103.03230
+- **What**: Redundancy-reduction SSL (no negatives)
+- **Priority**: MEDIUM - alternative to MAE
+
+#### VICReg - Variance-Invariance-Covariance Regularization
+- **Paper**: arXiv 2105.04906
+- **HuggingFace**: https://hf.co/papers/2105.04906
+- **What**: Redundancy-control SSL
+- **Priority**: MEDIUM - alternative to MAE
+- **Note**: User recommends "MAE *or* VICReg" as top choices
+
+### D) Long-Context / Efficient Attention
+
+#### Longformer ⭐ CONCEPTUAL TEMPLATE
+- **Paper**: arXiv 2004.05150
+- **HuggingFace**: https://hf.co/papers/2004.05150
+- **What**: Linear-ish attention for long documents
+- **Why Relevant**: WSI = long sequence problem (100K-1M patches)
+- **Use Case**: Include 5-20× more tissue context per slide/region
+- **Priority**: **HIGH** - unlocks whole-slide context
+- **Timeline**: Month 4 Week 1 (novel architecture design)
+
+#### Ring Attention with Blockwise Transformers
+- **Paper**: arXiv 2310.01889
+- **HuggingFace**: https://hf.co/papers/2310.01889
+- **What**: Distributed long-context attention (engineering unlock)
+- **Priority**: HIGH - enables scaling to full WSI context
+
+#### Mega - Moving Average Equipped Gated Attention
+- **Paper**: arXiv 2209.10655
+- **HuggingFace**: https://hf.co/papers/2209.10655
+- **What**: Alternative efficient attention mechanism
+- **Priority**: MEDIUM - if Longformer/Ring Attention insufficient
+
+### E) Equivariance (Rotation/Shift Robustness)
+
+#### Equivariant Transformer Networks
+- **Paper**: arXiv 1901.11399
+- **HuggingFace**: https://hf.co/papers/1901.11399
+- **What**: Baseline equivariant architecture concept
+- **Why Relevant**: Histology has rotation/shift symmetries
+- **Priority**: MEDIUM - improves sample efficiency, reduces augmentation need
+
+#### Shift Equivariance in Vision Transformers
+- **Paper**: arXiv 2306.07470
+- **HuggingFace**: https://hf.co/papers/2306.07470
+- **What**: Make ViTs less brittle to patch grid shifts (tiling artifacts)
+- **Priority**: MEDIUM-HIGH - relevant to Visium HD grid alignment
+- **Use Case**: If model sensitive to rotation/tiling
+
+#### Equivariant Contrastive Learning
+- **Paper**: arXiv 2111.00899
+- **HuggingFace**: https://hf.co/papers/2111.00899
+- **What**: SSL that learns what should be equivariant vs invariant
+- **Priority**: MEDIUM - combines SSL + equivariance
+
+### F) Uncertainty and Calibration ⭐ CRITICAL FOR DEPLOYMENT
+
+#### CRUDE - Calibrated Regression Under Distribution Shift
+- **Paper**: arXiv 2005.12496
+- **HuggingFace**: https://hf.co/papers/2005.12496
+- **What**: Simple regression uncertainty calibration
+- **Why Critical**: Gene expression prediction is high-stakes under shift
+- **Output**: Prediction intervals + confidence scores
+- **Priority**: **CRITICAL** - makes model operational (not just leaderboard toy)
+- **Timeline**: Month 5 Week 3 (after optimization, before publication)
+
+#### Density-Aware Calibration
+- **Paper**: arXiv 2302.05118
+- **HuggingFace**: https://hf.co/papers/2302.05118
+- **What**: Robust calibration under domain shift
+- **Priority**: HIGH - complementary to TTA
+
+#### Regression Calibration Survey
+- **Paper**: arXiv 2306.02738
+- **HuggingFace**: https://hf.co/papers/2306.02738
+- **What**: Empirical map of what works in regression calibration
+- **Priority**: MEDIUM - reference for choosing calibration method
+
+---
+
+## Tier 14 Summary: Recommended Integration Strategy
+
+### Clean Strategy (Conservative, High ROI)
+1. **MAE or VICReg** (Month 3): Pretrain patch encoder on unlabeled WSIs
+2. **TTA BN Calibration** (Month 5): Add test-time adaptation for batch effects
+3. **CRUDE Calibration** (Month 5): Produce prediction intervals for operational use
+
+### Aggressive Strategy (Win on Generalization)
+1. **OT-based alignment** (Month 4): Cross-cohort/modality alignment (InfoOT, Unbalanced COOT)
+2. **Long-context attention** (Month 4): Longformer/Ring Attention for whole-slide context
+3. **Calibration** (Month 5): Uncertainty quantification (CRUDE, Density-Aware)
+
+### Critical Gap Filled
+- **Batch Effects**: TTA BN Calibration (Month 5) addresses HESCAPE warning
+- **Deployment Readiness**: CRUDE calibration (Month 5) makes predictions usable
+
+---
+
 ## Tier 7: Evaluation Frameworks and Tools
 
 ### scIB-E (Single-cell Integration Benchmarking - Extended)
