@@ -14,24 +14,92 @@ This document catalogs all methods discovered for predicting spatial transcripto
 3. Novelty of approach
 4. Publication venue and recency
 
-**Total Methods Found**: 40+
+**Total Methods Found**: 45+
 
-**Last Update**: 2025-12-26 (User-provided SOTA methods added)
+**Last Update**: 2025-12-26 (Critical infrastructure + generative methods added)
+
+**Status**: Week 1 complete with optimized execution order
+
+---
+
+## Critical Reality Check: What "2μm" Actually Means
+
+⚠️ **Important**: Visium HD is a grid of 2×2 μm barcoded squares, but **10X recommends starting at 8×8 μm bins**. When papers claim "2μm," verify:
+- (a) **Raw 2μm bins** (extremely sparse, ~90% zeros)
+- (b) **Cell-level** maps rendered onto pixels
+- (c) **8μm bins** (most common)
+
+**Implication**: True 2μm prediction requires:
+1. **Bin→cell assignment** (cells overlap bins, bins overlap cells)
+2. **Sparsity handling** (regression/MSE collapses to zeros)
+3. **Generative heads** (diffusion/flow/discrete counts)
+
+---
+
+## Tier -1: Infrastructure (The Missing Piece)
+
+### ENACT ⭐⭐⭐ CRITICAL - START HERE ⭐⭐⭐
+- **Paper**: Bioinformatics 2025 (OUP Academic)
+- **PMID**: TBD
+- **GitHub**: https://github.com/Sanofi-Public/enact-pipeline ✅
+- **Why CRITICAL**: **First tissue-agnostic pipeline for Visium HD bin→cell assignment**
+- **What It Does**:
+  - Cell segmentation (StarDist)
+  - Multiple bin-to-cell assignment strategies
+  - Outputs AnnData format
+- **The Problem It Solves**: At 2μm, cells overlap bins and bins overlap cells - you need assignment logic BEFORE prediction
+- **Priority**: **MUST RUN FIRST** - this defines your ground truth
+- **User Insight**: "Bin→cell is part of the model, not preprocessing"
+- **Status**: Production-ready pipeline, Python-based
+- **Note**: Without this, you're not truly working at 2μm resolution
 
 ---
 
 ## Tier 0: Bleeding Edge (2024-2025 SOTA Breakthroughs)
 
-### Stem (ICLR 2025)
-- **Paper**: ICLR 2025 (upcoming/recent)
-- **GitHub**: Search pending
+### Stem (ICLR 2025) ⭐ GENERATIVE BASELINE - START HERE FOR DIFFUSION
+- **Paper**: ICLR 2025
+- **GitHub**: https://github.com/SichenZhu/Stem ✅
 - **Key Innovation**: **Conditional Diffusion for ST Prediction**
 - **Paradigm Shift**: Generative (not regression) - learns distribution of possible expressions for given morphology
 - **Why Critical**: Handles "one-to-many" biological reality (same morphology → multiple possible cell states)
+- **Implementation**: Clean repo, HEST integration, runnable
 - **Resolution**: 2μm capable
-- **Priority**: **BLEEDING EDGE** - represents paradigm shift from regression to generative
-- **Status**: ⚠️ Very recent, code availability TBD
+- **Priority**: **HIGHEST for generative baseline** - cleanest diffusion implementation
+- **User Recommendation**: "If you want fast proof you can win, run Stem first"
 - **Borrowed From**: Generative AI / Latent Diffusion Models (Stable Diffusion, DALL-E)
+
+### STFlow (ICML 2025) ⭐ SLIDE-LEVEL JOINT MODELING
+- **Paper**: ICML 2025
+- **GitHub**: https://github.com/Graph-and-Geometric-Learning/STFlow ✅
+- **Key Innovation**: **Whole-slide flow matching** - models joint distribution across entire slide
+- **Paradigm**: Spots are NOT independent - captures cell-cell interactions
+- **Why Critical**: "If your thesis is 'slide-level structure matters', run STFlow"
+- **Resolution**: Whole-slide scale
+- **Priority**: **HIGH** - addresses spatial dependence explicitly
+- **User Recommendation**: Alternative to Stem if slide-level structure is key hypothesis
+- **Borrowed From**: Flow matching / Normalizing flows
+
+### GenAR (Late 2025) ⭐ DISCRETE COUNT GENERATION
+- **Paper**: OpenReview 2025
+- **GitHub**: https://github.com/oyjr/genar ✅ (verify)
+- **Key Innovation**: **Multi-scale autoregressive discrete count generation**
+- **Why Critical**: Treats outputs as **discrete tokens/counts** (not continuous)
+- **Addresses**: "Counts aren't continuous" - raw 2μm bins are integer counts
+- **Priority**: **HIGH** - direct counter to sparsity/zero-inflation
+- **User Recommendation**: "Put GenAR on your radar specifically for discrete counts"
+- **Note**: DeepSpot2Cell uses MSE (easy to beat with better likelihood/discrete head)
+- **Borrowed From**: Autoregressive language models (GPT-style)
+
+### PixNet (2025) - DENSE CONTINUOUS MAPPING
+- **Paper**: arXiv 2025
+- **GitHub**: Code availability unclear
+- **Key Innovation**: **Dense continuous gene expression map** - aggregate into any spot size
+- **Paradigm**: Implicit neural representation f(x,y,context)→expression
+- **Why Critical**: Conceptually perfect for HD (dense outputs, sparse supervision)
+- **Resolution**: Continuous (can aggregate to any bin size)
+- **Priority**: **MEDIUM** - novel approach, code availability uncertain
+- **Borrowed From**: NeRF / Coordinate MLPs (implicit neural representations)
 
 ### CarHE (2024)
 - **Paper**: Published 2024
@@ -437,26 +505,80 @@ Based on design document list, still need to find:
 - **Architecture**: Vision Transformer OR Hierarchical CNN
 - **Output**: Dense prediction map (pixel-wise or 2μm bin-wise) where center pixel inferred from surrounding context
 
-### Priority Re-Ranking After User Input
+### Optimized Execution Order (User-Recommended)
 
-**Immediate Investigation (Week 2)**:
-1. **CarHE** - explicitly designed for Visium HD 2μm (our exact use case)
-2. **DeepSpot2Cell** - virtual single-cell via MIL (deconvolution approach)
-3. **Stem** - bleeding edge diffusion (if code available)
-4. **GHIST** - Nature Methods 2025 (paper acquired)
+**"If you told me 'win within 8-12 weeks,' I'd do:"**
 
-**Week 2-3 Architectural Extraction**:
-- CarHE: CLIP-style contrastive learning implementation
-- DeepSpot2Cell: DeepSets/MIL architecture
-- HIPT: Hierarchical multi-scale learning
-- TissueNarrator: Tokenization approach (if tractable)
+**Step 0 (Days 0-1): Lock the Eval Definition** ⚠️ CRITICAL
+- **Decide**: Raw 2μm bins vs 8μm bins vs cell-level?
+- **Metrics**: Gene-wise correlation + SVG recovery + cell-type recovery (NOT just SSIM)
+- **Why**: Prevent trivial smoothing, reward biological signal
+- **Reference**: GHIST shows cell-type accuracy style evaluation
 
-**Novel Hypotheses Generated**:
+**Step 1 (Days 1-2): Steal ENACT's Bin→Cell Machinery** ⭐ THE MISSING PIECE
+- **Goal**: Produce cell-by-gene matrices from Visium HD + segmentation
+- **Action**: Clone https://github.com/Sanofi-Public/enact-pipeline
+- **Extract**: Cell segmentation, bin-to-cell assignment, AnnData output
+- **Why**: "Without this, you're not truly working at 2μm"
+
+**Step 2 (Days 2-3): Get a Generative Baseline Running**
+- **Option A (fast proof)**: Run **Stem** (clean repo, HEST integration)
+- **Option B (slide-level structure)**: Run **STFlow** (whole-slide joint modeling)
+- **Why**: Generative > regression for sparse/zero-inflated 2μm bins
+
+**Step 3 (Days 3-4): Extract MIL/DeepSets Aggregator**
+- **Source**: DeepSpot2Cell
+- **Goal**: "Bag of subspots/cells → spot" logic as drop-in module
+- **Why**: Handles partial cells/bins correctly
+
+**Step 4 (Days 4-5): Decide Count Handling**
+- **Problem**: MSE plateaus on HD sparsity (DeepSpot2Cell uses MSE = easy to beat)
+- **Option A**: Swap to **GenAR** (discrete counts/tokens)
+- **Option B**: Keep Stem diffusion (continuous but generative)
+- **Option C**: Report both
+
+**The "Clean Frankenstein" (High Probability of Working)**:
+```
+PFM Encoder → Multiscale Context → MIL Aggregator → Generative Head
+     ↓              ↓                    ↓                  ↓
+   UNI/Virchow   HIPT/Local        DeepSpot2Cell      Stem/STFlow/GenAR
+```
+
+**The "Aggressive Frankenstein" (Highest Upside, Highest Risk)**:
+1. **Contrastive pretrain** (BLEEP/H&Enium/CarHE) → stable H&E↔RNA latent
+2. **Generative finetune** (diffusion/flow/AR counts) conditioned on latent
+3. Optional: Retrieval of RNA prototypes (nearest-neighbor gene vectors) during decoding
+
+---
+
+### Novel Hypotheses Generated
+
+**From Initial SOTA Analysis**:
 - H_diff_001: Replace our MSE loss with conditional diffusion head
 - H_contrast_001: Use contrastive learning (CLIP-style) instead of supervised regression
 - H_hier_001: Hierarchical encoders (tissue + cellular scales)
 - H_mil_001: Treat Visium HD 2μm bins as bags of sub-cellular features
 - H_token_001: Spatial tokenization + masked modeling for self-supervised pretraining
+
+**From Updated Analysis**:
+- H_enact_001: ENACT-style cell-level ground truth vs raw bin-level
+- H_flow_001: Flow matching (STFlow) vs diffusion (Stem) for slide-level structure
+- H_discrete_001: Discrete count generation (GenAR) vs continuous (Stem/MSE)
+- H_franken_001: Full Frankenstein (PFM→HIPT→MIL→Diffusion)
+- H_2stage_001: Two-stage (contrastive pretrain → generative finetune)
+
+---
+
+### Predictable Failure Modes (Watch For These)
+
+1. **Stain/Batch Artifact Leakage**: Model "wins" metrics by learning slide-level artifacts
+   - **Prevention**: Slide-level train/test splits, cross-stain validation
+2. **Registration Noise Dominates**: Model learns blur, not biology
+   - **Prevention**: ENACT jitter stress tests, alignment QC
+3. **Degenerate Loss (All Zeros)**: Raw 2μm sparsity → loss collapses
+   - **Prevention**: Generative heads (diffusion/flow/discrete counts), NOT MSE
+4. **Trivial Smoothing**: High SSIM from Gaussian blur
+   - **Prevention**: SVG recovery, cell-type accuracy, pathway alignment metrics
 
 ---
 
@@ -471,5 +593,32 @@ Based on design document list, still need to find:
 
 ---
 
-**Last Updated**: 2025-12-26
-**Next Update**: After Week 2 deep extraction phase
+## Meta-Resources (Stay Comprehensive Without Drowning)
+
+### Curated Lists
+1. **Awesome Vision-driven Models for Spatial Omics**
+   - GitHub: https://github.com/hrlblab/computer_vision_spatial_omics
+   - Living list of ST prediction methods
+   - Includes methodological categorization
+
+2. **HEtoSGEBench** (Benchmarking Pipeline)
+   - GitHub: https://github.com/SydneyBioX/HEtoSGEBench
+   - Forces honest eval hygiene
+   - Useful for spot-based prediction pipelines
+
+### Foundation Model Hubs
+- **HuggingFace Mahmood Lab**: UNI, UNI2-h, CONCH, CONCHv1.5, FEATHER models
+- **HuggingFace Bioptimus**: H-optimus-0, H0-mini
+- **Paige AI**: Virchow, Virchow2 (Azure marketplace)
+
+### Datasets
+- **HEST-1K** (NeurIPS 2024): 1000+ paired ST + WSI, 11 FM benchmark
+- **10X Visium HD Public**: Human Colon Cancer (https://github.com/10XGenomics/HumanColonCancer_VisiumHD)
+- **Ken Lau CRC Atlas**: 6 papers, potential validation cohort
+
+---
+
+**Last Updated**: 2025-12-26 (Post-user intelligence integration)
+**Next Update**: After Week 2 code archaeology + eval definition locked
+**Total Methods**: 45+ (Tier -1 to Tier 5)
+**Execution-Ready**: YES ✅
