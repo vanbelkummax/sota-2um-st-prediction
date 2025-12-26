@@ -1,0 +1,94 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyTorch
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (too large for git)
+data/
+*.h5
+*.hdf5
+*.npz
+*.npy
+
+# Results (track summary CSVs, not raw outputs)
+results/**/*.npy
+results/**/*.npz
+results/**/*.h5
+results/**/*.png
+results/**/*.jpg
+
+# Pretrained weights (too large, use HuggingFace/Zenodo)
+pretrained_weights/*.pth
+pretrained_weights/*.pt
+pretrained_weights/*.ckpt
+
+# Papers (copyright, not in git)
+papers/**/*.pdf
+
+# Figures (track publication quality only)
+figures/month*/**/*.png
+figures/month*/**/*.jpg
+
+# Logs
+*.log
+logs/
+wandb/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Environment
+.env
+.env.local
+
+# Keep these structure files
+!results/**/.gitkeep
+!pretrained_weights/.gitkeep
+!papers/.gitkeep
+!figures/.gitkeep
