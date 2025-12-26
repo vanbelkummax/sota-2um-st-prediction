@@ -14,7 +14,65 @@ This document catalogs all methods discovered for predicting spatial transcripto
 3. Novelty of approach
 4. Publication venue and recency
 
-**Total Methods Found**: 30+
+**Total Methods Found**: 40+
+
+**Last Update**: 2025-12-26 (User-provided SOTA methods added)
+
+---
+
+## Tier 0: Bleeding Edge (2024-2025 SOTA Breakthroughs)
+
+### Stem (ICLR 2025)
+- **Paper**: ICLR 2025 (upcoming/recent)
+- **GitHub**: Search pending
+- **Key Innovation**: **Conditional Diffusion for ST Prediction**
+- **Paradigm Shift**: Generative (not regression) - learns distribution of possible expressions for given morphology
+- **Why Critical**: Handles "one-to-many" biological reality (same morphology → multiple possible cell states)
+- **Resolution**: 2μm capable
+- **Priority**: **BLEEDING EDGE** - represents paradigm shift from regression to generative
+- **Status**: ⚠️ Very recent, code availability TBD
+- **Borrowed From**: Generative AI / Latent Diffusion Models (Stable Diffusion, DALL-E)
+
+### CarHE (2024)
+- **Paper**: Published 2024
+- **GitHub**: https://github.com/Jwzouchenlab/CarHE ✅
+- **Key Innovation**: **Contrastive Alignment for Visium HD**
+- **Architecture**: CLIP-style contrastive learning + Transformer
+- **Resolution**: **Explicitly designed for Visium HD 2μm bins + Xenium (subcellular)**
+- **Performance**: Predicts 17,000+ genes at 2μm resolution
+- **Why Critical**: First method explicitly validated on Visium HD 2μm data
+- **Priority**: **CRITICAL** - our exact use case (Visium HD 2μm)
+- **Borrowed From**: Web-scale image search (CLIP/OpenAI)
+
+### DeepSpot2Cell (2024)
+- **Paper**: Published 2024
+- **GitHub**: https://github.com/ratschlab/DeepSpot2Cell ✅
+- **Key Innovation**: **Virtual Single-Cell Prediction via DeepSets/MIL**
+- **Architecture**: Multiple Instance Learning + Pathology Foundation Models (UNI/Hoptimus0)
+- **Resolution**: Virtual single-cell (~2μm nuclear scale)
+- **Paradigm**: Treats "spot" as bag of cells, deconvolves aggregate → single-cell
+- **Why Critical**: Super-resolution from coarse data (train on standard Visium, predict single-cell)
+- **Priority**: **CRITICAL** - deconvolution approach novel
+- **Borrowed From**: DeepSets / Multiple Instance Learning
+
+### TissueNarrator (2024)
+- **Paper**: Published 2024
+- **GitHub**: Search pending
+- **Key Innovation**: **LLM/Tokenization for Spatial Biology**
+- **Architecture**: Treats tissue as "spatial sentences" (cells = words)
+- **Paradigm**: Uses LLM architectures to predict based on "grammar" of cellular neighborhoods
+- **Why Critical**: Most novel approach - applies NLP to spatial biology
+- **Priority**: **HIGH** - extremely novel, may be overkill
+- **Borrowed From**: Large Language Models (ChatGPT/BERT)
+
+### Diff-ST (MICCAI 2024)
+- **Paper**: MICCAI 2024
+- **GitHub**: Search pending
+- **Key Innovation**: **Diffusion for Image Super-Resolution → ST**
+- **Architecture**: Treats ST prediction as image super-resolution task
+- **Why Critical**: Proven diffusion framework adapted for biology
+- **Priority**: **HIGH** - diffusion approach established
+- **Borrowed From**: Image restoration / Super-resolution
 
 ---
 
@@ -57,6 +115,62 @@ This document catalogs all methods discovered for predicting spatial transcripto
 - **Key Innovation**: Versatile framework with customizable deep histology and location-informed integration
 - **GitHub**: Search pending
 - **Priority**: **HIGH** - from our lab, customizable framework
+
+---
+
+## Tier 1.5: Advanced Architectures (Novel Techniques from Other Fields)
+
+### LUNA (2024)
+- **Paper**: Search pending
+- **GitHub**: Search pending
+- **Key Innovation**: **Masked Language Modeling for Spatial Transcriptomics**
+- **Architecture**: Spatial tokenization + Masked modeling
+- **Technique**: Mask 20% of cells, predict from remaining 80% context
+- **Why Critical**: Forces model to learn tissue organization rules
+- **Priority**: **HIGH** - self-supervised learning approach
+- **Borrowed From**: BERT/Masked Language Models (NLP)
+
+### BLEEP (2024)
+- **Paper**: Search pending
+- **GitHub**: Search pending
+- **Key Innovation**: **Shared Latent Spaces (H&E ↔ RNA)**
+- **Architecture**: Dual encoders + InfoNCE loss
+- **Capability**: Zero-shot gene queries
+- **Priority**: **MEDIUM** - contrastive learning variant
+- **Borrowed From**: CLIP / Contrastive Learning
+
+### HIPT (Hierarchical Image Pyramid Transformer)
+- **Paper**: Search pending
+- **GitHub**: Search pending
+- **Key Innovation**: **Multi-scale hierarchical learning**
+- **Architecture**: Zoom-out encoder (256μm) + Zoom-in encoder (2μm)
+- **Why Critical**: Captures tissue architecture AND nuclear morphology
+- **Priority**: **HIGH** - addresses context vs resolution trade-off
+- **Borrowed From**: Satellite imaging / Gigapixel learning
+
+### iStar (2024)
+- **Paper**: Search pending
+- **GitHub**: Search pending
+- **Key Innovation**: **Hierarchical gigapixel learning**
+- **Priority**: **MEDIUM** - hierarchical approach
+- **Borrowed From**: Remote sensing
+
+### ResSAT (2024)
+- **Paper**: Search pending
+- **GitHub**: https://github.com/StickTaTa/STGIN_main ✅ (verify)
+- **Key Innovation**: **Graph Self-Supervised Residual Learning**
+- **Architecture**: Spatial context + batch correction
+- **Priority**: **MEDIUM** - GNN-based
+- **Borrowed From**: Graph representation learning
+
+### H&Enium (2024)
+- **Paper**: Search pending
+- **GitHub**: https://github.com/cbib/DeepSpot ✅ (verify branch)
+- **Key Innovation**: **Foundation Model Alignment (H&E ↔ scRNA-seq)**
+- **Architecture**: Soft alignment target for biological noise tolerance
+- **Resolution**: Cell-level/subcellular
+- **Priority**: **MEDIUM** - alignment approach
+- **Borrowed From**: Multi-modal contrastive learning
 
 ---
 
@@ -279,6 +393,70 @@ Based on design document list, still need to find:
 ### Week 4
 - [ ] Mine cross-disciplinary literature
 - [ ] Generate 10-15 novel hypothesis candidates
+
+---
+
+## Key Architectural Insights (User-Provided SOTA Analysis)
+
+### Paradigm Shift: Regression → Generative
+- **Old Approach**: CNNs with regression heads → predict mean expression (blurry, misses rare cells)
+- **New Approach**: Diffusion models (Stem, Diff-ST) → learn distribution of expressions
+- **Impact**: Handles "one-to-many" biology (same morphology → multiple possible states)
+
+### Critical Techniques Borrowed from Other Fields
+
+1. **From Generative AI**: Latent Diffusion Models (Stable Diffusion → Stem, Diff-ST)
+   - Generate sharp, multimodal distributions
+   - Predict Cell Type A OR B (not averaged muddy signal)
+
+2. **From NLP**: Tokenization + Masked Modeling (BERT → TissueNarrator, LUNA)
+   - Cells = words, tissue = sentences
+   - Mask 20% of cells, predict from 80% context
+   - Learns "tissue grammar"
+
+3. **From Web-Scale Search**: Contrastive Learning (CLIP → CarHE, BLEEP, H&Enium)
+   - Shared latent spaces (H&E ↔ RNA)
+   - InfoNCE loss
+   - Enables zero-shot gene queries
+
+4. **From Satellite Imaging**: Hierarchical Gigapixel Learning (HIPT, iStar)
+   - Zoom-out (256μm tissue architecture) + Zoom-in (2μm nuclear morphology)
+   - Addresses context vs resolution trade-off
+
+### The "Winning Frankenstein Architecture" (User Recommendation)
+
+**Do NOT use simple CNN (ResNet/EfficientNet) - that approach has plateaued.**
+
+**Recommended Stack**:
+1. **Encoder**: Pathology Foundation Model (UNI, CONCH, Virchow) - do NOT train from scratch
+2. **Context**: Graph Neural Network OR Transformer to aggregate neighbor features (spatial context)
+3. **Prediction Head**: Diffusion Head (NOT regression head) to preserve variance + biological noise
+
+**Critical for 2μm**:
+- **Input**: Large context patch (256×256 px, ~100+ μm) - NOT just 2μm crop
+- **Architecture**: Vision Transformer OR Hierarchical CNN
+- **Output**: Dense prediction map (pixel-wise or 2μm bin-wise) where center pixel inferred from surrounding context
+
+### Priority Re-Ranking After User Input
+
+**Immediate Investigation (Week 2)**:
+1. **CarHE** - explicitly designed for Visium HD 2μm (our exact use case)
+2. **DeepSpot2Cell** - virtual single-cell via MIL (deconvolution approach)
+3. **Stem** - bleeding edge diffusion (if code available)
+4. **GHIST** - Nature Methods 2025 (paper acquired)
+
+**Week 2-3 Architectural Extraction**:
+- CarHE: CLIP-style contrastive learning implementation
+- DeepSpot2Cell: DeepSets/MIL architecture
+- HIPT: Hierarchical multi-scale learning
+- TissueNarrator: Tokenization approach (if tractable)
+
+**Novel Hypotheses Generated**:
+- H_diff_001: Replace our MSE loss with conditional diffusion head
+- H_contrast_001: Use contrastive learning (CLIP-style) instead of supervised regression
+- H_hier_001: Hierarchical encoders (tissue + cellular scales)
+- H_mil_001: Treat Visium HD 2μm bins as bags of sub-cellular features
+- H_token_001: Spatial tokenization + masked modeling for self-supervised pretraining
 
 ---
 
