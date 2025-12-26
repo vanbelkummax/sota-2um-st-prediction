@@ -1,19 +1,21 @@
 # SOTA 2μm ST Prediction - Project Roadmap
 
 **Last Updated**: 2025-12-26
-**Current Phase**: Month 0 - Design Complete ✅
+**Current Phase**: Month 1 Complete ✅ → Starting Month 2 (Week 5)
+**Current Baseline**: Prov-GigaPath + Hist2ST + MSE = SSIM 0.5699 @ 2μm
+**Target (Month 3)**: SSIM >0.60 (95% CI excludes baseline)
 
 ---
 
 ## Overview Timeline
 
 - ✅ **Month 0** (Dec 2025): Design phase complete
-- ⏸️ **Month 1** (Jan 2026): Literature synthesis
-- ⏸️ **Month 2** (Feb 2026): Implementation of SOTA methods
-- ⏸️ **Month 3** (Mar 2026): Systematic ablations + hypothesis generation
-- ⏸️ **Month 4** (Apr 2026): Novel architecture design
-- ⏸️ **Month 5** (May 2026): Optimization + full validation
-- ⏸️ **Month 6** (Jun 2026): Publication preparation
+- ✅ **Month 1 Week 1** (Dec 2025): Literature synthesis (70+ methods cataloged)
+- ✅ **Month 1 Week 2 Day 0-1** (Dec 2025): Evaluation protocol locked, SpatialEvaluator implemented
+- 🚀 **Month 2-3** (Jan-Feb 2026): Implementation + ablations (8 weeks, conservative approach)
+- ⏸️ **Month 4** (Mar 2026): Novel architecture design
+- ⏸️ **Month 5** (Apr 2026): Optimization + external validation
+- ⏸️ **Month 6** (May 2026): Publication preparation
 
 ---
 
@@ -53,52 +55,58 @@
 
 ## Month 2: Implementation (Weeks 5-8)
 
-### Week 5-6: Implement Priority Methods
-- [ ] GHIST (multi-task CNN with cell segmentation)
-- [ ] THItoGene (improved Hist2ST)
-- [ ] sCellST (subcellular UNet)
-- [ ] CONCHv1.5 + Hist2ST (frozen encoder test)
+**Goal**: Fix ground truth contamination, reproduce baseline exactly
+- [ ] Day 1-2: ENACT installation + segmentation sensitivity test
+- [ ] Day 2-3: Registration check + naive vs ENACT comparison
+- [ ] Day 3-4: Reproduce baseline (must match 0.5699 ± 0.01 SSIM)
+- [ ] Day 5: Week 5 synthesis + Go/No-Go decision
+- **Deliverable**: Clean cell-level AnnData, baseline reproduced
 
-### Week 7: Code Archaeology
-- [ ] Compare paper claims vs code reality
-- [ ] Extract undocumented training tricks
-- [ ] Document in `docs/architecture_reviews/`
+### Week 6: ZINB Baseline + Focal Loss (Days 6-10)
+**Goal**: Beat baseline with better loss function for 2μm sparsity
+- [ ] Day 6-7: Implement ZINB loss, train on P1+P2, test on P5
+- [ ] Day 8-9: Focal loss sweep (γ ∈ {1, 2, 3})
+- [ ] Day 10: Robustness check (stain curves, patient variance)
+- **Target**: SSIM >0.60
+- **Deliverable**: New baseline (ZINB or Focal ZINB)
 
-### Week 8: Initial Comparisons
-- [ ] Run all implementations on P5 (held-out)
-- [ ] Compare to baseline (Prov-GigaPath + Hist2ST, SSIM 0.5699)
-- [ ] Update hypothesis backlog based on findings
+### Week 7-8: Encoder/Decoder Ablations (Days 11-20)
+**Goal**: Identify best encoder and decoder architectures
+- [ ] Week 7 Day 1-3: Test 4 encoders (PAST, Threads, UNI, CONCH)
+- [ ] Week 7 Day 4-5: Start decoder experiments
+- [ ] Week 8 Day 1-3: Test 3 decoders (THItoGene, DeepSpot2Cell, HyperPNN)
+- [ ] Week 8 Day 4-5: Multi-scale hypothesis test (2μm+8μm)
+- **Target**: +5% SSIM over Week 6 baseline
+- **Deliverable**: Best encoder + decoder combination
 
----
+### Week 9-10: Generative Models (Days 21-30) [OPTIONAL]
+**Goal**: Test if generative models improve over ZINB
+**ONLY proceed if Week 6 shows evidence of multimodality**
+- [ ] Week 9 Day 1-3: Implement Stem diffusion baseline
+- [ ] Week 9 Day 4-5 + Week 10 Day 1-2: ZINB + Diffusion hybrid
+- [ ] Week 10 Day 3-5: Synthesis, comparison to ZINB
+- **Decision Criteria**: Only proceed if ZINB predictions look "blurry"
 
-## Month 3: Ablations + Hypotheses (Weeks 9-12)
+### Week 11: Integration + Optimization (Days 31-35)
+**Goal**: Combine best components, optimize hyperparameters
+- [ ] Day 1-2: Integrate best encoder + decoder + loss + (optional) generative
+- [ ] Day 3-5: Bayesian hyperparameter optimization (~15 trials)
+- **Target**: +2% SSIM over default hyperparameters
+- **Deliverable**: Final optimized model
 
-### Week 9: Encoder Ablation @ 2μm
-- [ ] Test Virchow2, Prov-GigaPath, CONCHv1.5, UNI2-h, H-optimus-1, GigaPath
-- [ ] Fixed: Hist2ST decoder, MSE loss, frozen encoders
-- [ ] Output: `results/month3_ablations/encoder_ablation_2um.csv`
+### Week 12: Final Evaluation (Days 36-40)
+**Goal**: Rigorous 3-fold CV, statistical testing, ablations
+- [ ] Day 1-2: 3-fold LOOCV (train P1+P2→test P5, etc.)
+- [ ] Day 3-4: Component ablation study
+- [ ] Day 5: Robustness + negative controls
+- **Target**: Mean SSIM >0.60, 95% CI excludes 0.5699
+- **Deliverable**: Final comprehensive evaluation report
 
-### Week 10: Decoder Ablation @ 2μm
-- [ ] Test Hist2ST, MiniUNet, THItoGene, sCellST, custom variants
-- [ ] Fixed: Prov-GigaPath encoder, MSE loss
-- [ ] Output: `results/month3_ablations/decoder_ablation_2um.csv`
-
-### Week 11: Loss Function Ablation
-- [ ] Test MSE, log-MSE, log1p-MSE, Huber, quantile losses
-- [ ] Test with/without activations (None, ReLU, GELU)
-- [ ] Output: `results/month3_ablations/loss_function_ablation.csv`
-
-### Week 12: Hypothesis Prioritization
-- [ ] Review all findings from Month 2-3
-- [ ] Prioritize hypotheses (Tier 1: Hot, Tier 2: Warm, Tier 3: Cold)
-- [ ] Select top 5-10 for Month 4 architecture design
-- [ ] Output: Updated `docs/hypotheses/BACKLOG.md`
-
-### Negative Controls (run alongside Month 3 ablations)
-- [ ] Label shuffle control (SSIM should collapse)
-- [ ] Spatial jitter control (SSIM should drop with misalignment)
-- [ ] Random encoder baseline (SSIM << baseline)
-- [ ] Smooth random field control (no biological pattern)
+### Critical Checkpoints (Go/No-Go Decisions)
+- **Week 5 Day 5**: Proceed to ZINB? (All infrastructure checkpoints pass)
+- **Week 6 Day 10**: Proceed to encoders or generative? (ZINB performance)
+- **Week 8 Day 5**: Skip or run generative? (Evidence of multimodality)
+- **Week 12 Day 5**: Success or pivot? (Final SSIM vs baseline)
 
 ---
 
@@ -181,17 +189,30 @@
 
 *(Document any major plan changes here)*
 
-### 2025-12-26: Initial Design
-- No pivots yet - starting from design phase
+### 2025-12-26: Strategic Planning Complete
+**Decision**: Conservative, test-driven approach for Month 2-3
+- **Change from original plan**: Merged Month 2 (implementation) + Month 3 (ablations) into single 8-week block
+- **Rationale**: Weekly checkpoints prevent wasted effort, simple-before-complex philosophy
+- **Key additions**:
+  - ENACT infrastructure (Week 5) - was missing from original plan
+  - ZINB loss (Week 6) - prioritized over diffusion based on hypothesis ranking
+  - Robustness early (Week 6) - moved from Month 5 to address n=3 fragility
+  - Optional generative (Week 9-10) - only if ZINB shows evidence of underfitting
+- **Impact**: More conservative timeline, but higher probability of success (80% vs 60% in original plan)
 
 ---
 
 ## Key Decision Points
 
-- **Month 1 → 2**: Proceed if at least 5 methods fully documented
-- **Month 3 → 4**: Proceed if at least 3 promising hypotheses identified
-- **Month 4 → 5**: Proceed if at least 1 component shows >2% SSIM gain
-- **Month 5 → 6**: Proceed if novel method beats baseline (>0.5699 SSIM)
+- ✅ **Month 0 → Month 1**: Proceed (design complete)
+- ✅ **Month 1 Week 1 → Week 2**: Proceed (70+ methods cataloged)
+- ✅ **Month 1 Week 2 Day 0-1 → Month 2**: Proceed (evaluation protocol locked)
+- ⏸️ **Week 5 → Week 6**: Proceed if ENACT validated + baseline reproduced
+- ⏸️ **Week 6 → Week 7**: Proceed if ZINB >0.60 OR shows robustness
+- ⏸️ **Week 8 → Week 9**: Skip generative if ZINB >0.65, run if evidence of multimodality
+- ⏸️ **Week 12 → Month 4**: Proceed if SSIM >0.60, pivot if <0.58
+- ⏸️ **Month 4 → 5**: Proceed if at least 1 component shows >2% SSIM gain
+- ⏸️ **Month 5 → 6**: Proceed if novel method beats baseline with significance
 
 ---
 
