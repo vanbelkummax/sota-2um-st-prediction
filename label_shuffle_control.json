@@ -1,0 +1,10 @@
+{
+  "timestamp": "2025-12-27T12:35:15.882685",
+  "model_path": "/home/user/work/mse-vs-poisson-2um-benchmark/results/h013_poisson_prov_p5_20251225_110302/testP5_20251225_110304/best_model.pt",
+  "encoder": "gigapath",
+  "loss_type": "poisson",
+  "test_patient": "P5",
+  "results": {
+    "none": {
+      "ssim_2um": 0.5709973621566586,
+      "pcc_2um": 

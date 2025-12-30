@@ -1,0 +1,115 @@
+# SOTA 2μm ST Prediction - Default Configuration
+# ================================================
+# All paths use fast Linux ext4 filesystem
+
+# Data paths (ext4 - fast!)
+data:
+  root: /home/user/work/encoder-loss-ablation-2um/data
+  image_root: /home/user/work/encoder-loss-ablation-2um/data/multiscale
+  output_root: /home/user/sota-2um-st-prediction/results
+
+  # Patient IDs
+  patients: [P1, P2, P5]
+
+  # Gene settings
+  n_genes: 50
+  patch_size: 224
+  label_size: 128
+
+# Model settings
+model:
+  # Encoder options: prov-gigapath, virchow2, uni2-h, h-optimus-1, conchv1.5
+  encoder: prov-gigapath
+  encoder_dim: 1536  # 1536 for GigaPath/UNI2, 1280 for Virchow2, 1024 for H-optimus
+  freeze_encoder: true
+
+  # Decoder options: hist2st, miniunet
+  decoder: hist2st
+  hidden_dim: 1024
+
+  # Multi-scale settings
+  scales: [2um, 8um]
+  fusion_type: cross_attention  # cross_attention, gated, hierarchical
+
+# Loss settings
+loss:
+  # Options: mse, poisson, zinb, focal, focal_zinb, multitask, two_stage
+  type: mse
+
+  # ZINB settings
+  zinb:
+    learn_theta: true
+    learn_pi: true
+    init_theta: 1.0
+
+  # Focal settings
+  focal:
+    gamma: 2.0
+    alpha: 0.25
+
+  # Multi-task settings
+  multitask:
+    weights: [1.0, 0.5, 0.25]
+    learn_weights: false
+
+# Training settings
+training:
+  epochs: 30
+  batch_size: 8
+  learning_rate: 5.0e-5
+  weight_decay: 1.0e-4
+
+  # Optimizer
+  optimizer: adamw
+  scheduler: cosine
+  warmup_epochs: 2
+
+  # Gradient settings
+  gradient_accumulation: 4
+  max_grad_norm: 1.0
+  use_amp: true
+
+  # Early stopping
+  early_stopping: true
+  patience: 10
+
+  # Validation
+  val_every_n_epochs: 1
+
+  # Data loading
+  num_workers: 8
+  pin_memory: true
+
+# Validation settings
+validation:
+  # LOPO-CV
+  cv_type: lopo  # leave-one-patient-out
+
+  # Metrics
+  metrics: [ssim, pcc, spearman, mae]
+  primary_metric: ssim_2um
+
+  # Targets
+  targets:
+    ssim_2um: 0.60
+    pcc_2um: 0.30
+
+# Hardware settings
+hardware:
+  device: cuda
+  seed: 42
+  deterministic: false
+
+  # Memory optimization
+  gradient_checkpointing: false
+  empty_cache_every_n_steps: 100
+
+# Logging settings
+logging:
+  log_every_n_steps: 10
+  save_every_n_epochs: 5
+  save_best_only: true
+
+  # Experiment tracking
+  experiment_name: sota_2um
+  wandb: false  # Set true to enable W&B logging
