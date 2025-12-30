@@ -99,8 +99,9 @@ class CrossScaleAttention(nn.Module):
         # Flatten spatial dims for attention: (B, H*W, C)
         q = query.flatten(2).transpose(1, 2)  # (B, H*W, C)
 
-        # Project query
+        # Project query and store for residual BEFORE multi-head reshape
         q = self.q_proj(q)  # (B, H*W, C)
+        q_residual = q  # Store pre-multihead for residual connection
         q = q.view(B, H * W, self.num_heads, self.head_dim).transpose(1, 2)  # (B, heads, H*W, head_dim)
 
         # Aggregate attention from each context scale
@@ -132,9 +133,8 @@ class CrossScaleAttention(nn.Module):
         attn_output = attn_output.transpose(1, 2).contiguous().view(B, H * W, C)  # (B, H*W, C)
         attn_output = self.out_proj(attn_output)
 
-        # Residual connection and reshape to spatial
-        output = q.transpose(1, 2).contiguous().view(B, H * W, C)  # Reshape q back
-        output = self.norm(output + attn_output)
+        # Residual connection using stored pre-multihead query (correct shape)
+        output = self.norm(q_residual + attn_output)  # Both are (B, H*W, C)
         output = output.transpose(1, 2).view(B, C, H, W)  # (B, C, H, W)
 
         return output
@@ -460,6 +460,21 @@ class MultiScaleHist2ST(nn.Module):
         pred = self.decoder(fused)  # (B, n_genes, 128, 128)
 
         return pred
+
+    def train(self, mode: bool = True):
+        """
+        Override train() to keep frozen encoders in eval mode.
+
+        When freeze_encoder=True, the encoder should ALWAYS stay in eval mode
+        to prevent BatchNorm/Dropout from updating during training.
+        """
+        super().train(mode)
+
+        # Keep frozen encoder in eval mode regardless of training mode
+        if self.freeze_encoder and hasattr(self, 'encoder'):
+            self.encoder.eval()
+
+        return self
 
 
 class TwoStagePredictor(nn.Module):

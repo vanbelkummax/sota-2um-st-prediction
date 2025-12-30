@@ -18,6 +18,7 @@ Date: December 2024
 
 import argparse
 import json
+import logging
 import os
 import sys
 from pathlib import Path
@@ -25,12 +26,14 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import warnings
 
+logger = logging.getLogger(__name__)
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import autocast, GradScaler
 from tqdm import tqdm
 import yaml
 
@@ -147,7 +150,10 @@ def create_loss_fn(args) -> nn.Module:
     if args.loss == "mse":
         return nn.MSELoss(reduction='none')
     elif args.loss == "poisson":
-        return nn.PoissonNLLLoss(log_input=False, reduction='none')
+        # Use log_input=True to handle model outputs that may be negative
+        # Model predicts log-counts, loss computes: exp(input) - target*input
+        # This is numerically stable for any input value
+        return nn.PoissonNLLLoss(log_input=True, reduction='none')
     elif args.loss == "zinb":
         return ZINBLoss(n_genes=50)
     elif args.loss == "focal":
@@ -377,15 +383,25 @@ def train_epoch(
         if batch is None:
             continue
 
-        # Prepare inputs
-        images = {scale: batch['images'][scale].to(device)
-                  for scale in args.scales if scale in batch['images']}
+        # Prepare inputs - check all required scales are present
+        images = {}
+        missing_scales = []
+        for scale in args.scales:
+            if scale in batch['images'] and batch['images'][scale] is not None:
+                images[scale] = batch['images'][scale].to(device)
+            else:
+                missing_scales.append(scale)
+
+        # Skip batch if any required scale is missing (especially 2um)
+        if missing_scales or '2um' not in images:
+            logger.warning(f"Skipping batch {batch_idx}: missing scales {missing_scales}")
+            continue
 
         labels = batch['labels_2um'].to(device)
         mask = batch['mask'].to(device)
 
         # Forward pass with mixed precision
-        with autocast(enabled=args.amp):
+        with autocast('cuda', enabled=args.amp):
             if args.loss == "two_stage":
                 logits_cls, pred_reg, pred = model(images['2um'])
                 loss, _ = loss_fn(logits_cls, pred_reg, labels, mask)
@@ -462,12 +478,23 @@ def evaluate(
         if batch is None:
             continue
 
-        images = {scale: batch['images'][scale].to(device)
-                  for scale in args.scales if scale in batch['images']}
+        # Prepare inputs - check all required scales are present
+        images = {}
+        missing_scales = []
+        for scale in args.scales:
+            if scale in batch['images'] and batch['images'][scale] is not None:
+                images[scale] = batch['images'][scale].to(device)
+            else:
+                missing_scales.append(scale)
+
+        # Skip batch if any required scale is missing
+        if missing_scales or '2um' not in images:
+            continue
+
         labels = batch['labels_2um'].to(device)
         mask = batch['mask'].to(device)
 
-        with autocast(enabled=args.amp):
+        with autocast('cuda', enabled=args.amp):
             if args.loss == "two_stage":
                 _, _, pred = model(images['2um'])
             elif len(args.scales) == 1:

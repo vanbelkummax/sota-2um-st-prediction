@@ -91,7 +91,9 @@ class ZINBLoss(nn.Module):
 
         # Probability of zero from NB component
         # P(Y=0|NB) = (theta / (theta + mu))^theta
-        nb_zero_prob = torch.pow(theta / (theta + mu + self.eps), theta)
+        # Clamp denominator for numerical stability (not double epsilon)
+        denom = (theta + mu).clamp(min=self.eps)
+        nb_zero_prob = torch.pow(theta / denom, theta)
 
         # Total probability of zero (mixture)
         prob_zero = pi + (1 - pi) * nb_zero_prob
@@ -99,12 +101,13 @@ class ZINBLoss(nn.Module):
         # Log probability for non-zero observations (NB component)
         # log P(Y=y|NB) = log Gamma(y+theta) - log Gamma(theta) - log Gamma(y+1)
         #                 + theta*log(theta/(theta+mu)) + y*log(mu/(theta+mu))
+        # Using clamped denominator for numerical stability
         log_nb_nonzero = (
             torch.lgamma(target + theta)
             - torch.lgamma(theta)
             - torch.lgamma(target + 1)
-            + theta * torch.log(theta / (theta + mu + self.eps) + self.eps)
-            + target * torch.log(mu / (theta + mu + self.eps) + self.eps)
+            + theta * torch.log((theta / denom).clamp(min=self.eps))
+            + target * torch.log((mu / denom).clamp(min=self.eps))
         )
 
         # Probability for non-zero (must come from NB, not zero-inflation)
@@ -233,15 +236,17 @@ class FocalZINBLoss(nn.Module):
             pi = torch.sigmoid(pi)
 
         # Compute NLL per element
-        nb_zero_prob = torch.pow(theta / (theta + mu_safe + self.zinb.eps), theta)
+        # Clamp denominator for numerical stability (not double epsilon)
+        denom = (theta + mu_safe).clamp(min=self.zinb.eps)
+        nb_zero_prob = torch.pow(theta / denom, theta)
         prob_zero = pi + (1 - pi) * nb_zero_prob
 
         log_nb_nonzero = (
             torch.lgamma(target + theta)
             - torch.lgamma(theta)
             - torch.lgamma(target + 1)
-            + theta * torch.log(theta / (theta + mu_safe + self.zinb.eps) + self.zinb.eps)
-            + target * torch.log(mu_safe / (theta + mu_safe + self.zinb.eps) + self.zinb.eps)
+            + theta * torch.log((theta / denom).clamp(min=self.zinb.eps))
+            + target * torch.log((mu_safe / denom).clamp(min=self.zinb.eps))
         )
         prob_nonzero = (1 - pi) * torch.exp(log_nb_nonzero)
 
