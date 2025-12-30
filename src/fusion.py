@@ -7,7 +7,21 @@ Our approach: Cross-scale attention that PRESERVES spatial dimensions.
 
 2μm features QUERY 8μm/32μm context without losing (H, W) structure.
 
-Author: Max Van Belkum + Claude Opus 4.5
+CRITICAL FOV ALIGNMENT NOTE:
+----------------------------
+When extracting 224x224 patches at different scales (2μm, 8μm, etc.),
+the physical Field of View (FOV) differs:
+- 2μm patch at 224px covers ~448μm physical area
+- 8μm patch at 224px covers ~1792μm physical area (4x larger)
+
+The 2μm patch is the CENTER CROP of the 8μm region.
+For element-wise fusion (GatedScaleFusion), we must extract the
+center region of coarse features that corresponds to the 2μm FOV.
+
+CrossScaleAttention can learn this mapping via attention weights,
+but GatedScaleFusion requires explicit center-cropping.
+
+Author: Max Van Belkum
 Date: December 2024
 """
 
@@ -128,18 +142,42 @@ class CrossScaleAttention(nn.Module):
 
 class GatedScaleFusion(nn.Module):
     """
-    Gated fusion of multi-scale features.
+    Gated fusion of multi-scale features WITH FOV ALIGNMENT.
 
-    Learns per-channel gates to weight contribution of each scale.
-    Simpler than attention but still effective.
+    CRITICAL: Different scales have different FOVs!
+    - 2μm features at (0,0) represent top-left of the 2μm patch
+    - 8μm features at (0,0) represent top-left of the 8μm patch (4x larger area)
 
-    gate_i = sigmoid(W_i * global_pool(feat_i))
-    output = sum(gate_i * feat_i)
+    The 2μm patch is the CENTER of the 8μm patch in physical space.
+    Before element-wise fusion, we must center-crop coarse features.
+
+    Scale factors (relative to 2μm):
+    - 2μm: 1x (reference)
+    - 8μm: 4x larger FOV
+    - 32μm: 16x larger FOV
+    - 128μm: 64x larger FOV
+
+    gate_i = sigmoid(W_i * global_pool(aligned_feat_i))
+    output = sum(gate_i * aligned_feat_i)
     """
 
-    def __init__(self, dim: int = 1024, num_scales: int = 3):
+    # Scale factors for FOV alignment (relative to 2μm)
+    SCALE_FACTORS = {
+        '2um': 1,
+        '8um': 4,
+        '32um': 16,
+        '128um': 64
+    }
+
+    def __init__(self, dim: int = 1024, num_scales: int = 3,
+                 scale_names: List[str] = None):
         super().__init__()
         self.num_scales = num_scales
+
+        # Default scale names if not provided
+        if scale_names is None:
+            scale_names = ['2um', '8um', '32um'][:num_scales]
+        self.scale_names = scale_names
 
         # Per-scale gating networks
         self.gates = nn.ModuleList([
@@ -154,24 +192,88 @@ class GatedScaleFusion(nn.Module):
             for _ in range(num_scales)
         ])
 
-    def forward(self, features: List[torch.Tensor]) -> torch.Tensor:
+    def _center_crop_and_resize(
+        self,
+        feat: torch.Tensor,
+        scale_factor: int,
+        target_size: Tuple[int, int]
+    ) -> torch.Tensor:
         """
-        Gated fusion.
+        Extract center region of coarse features corresponding to fine FOV.
 
         Args:
-            features: List of [2μm, 8μm, 32μm] features, each (B, C, H, W)
+            feat: Coarse features (B, C, H, W)
+            scale_factor: How much larger the FOV is (e.g., 4 for 8μm vs 2μm)
+            target_size: Target spatial size (H, W)
 
         Returns:
-            Fused features (B, C, H, W)
+            Aligned features (B, C, target_H, target_W)
+        """
+        if scale_factor == 1:
+            return feat
+
+        B, C, H, W = feat.shape
+
+        # The center region that corresponds to the fine-scale FOV
+        # is 1/scale_factor of the total area, centered
+        crop_h = H // scale_factor
+        crop_w = W // scale_factor
+
+        # Ensure minimum size of 1
+        crop_h = max(1, crop_h)
+        crop_w = max(1, crop_w)
+
+        # Calculate center crop coordinates
+        start_h = (H - crop_h) // 2
+        start_w = (W - crop_w) // 2
+
+        # Extract center crop
+        cropped = feat[:, :, start_h:start_h+crop_h, start_w:start_w+crop_w]
+
+        # Resize to match target (interpolate to broadcast context)
+        if cropped.shape[-2:] != target_size:
+            cropped = F.interpolate(
+                cropped,
+                size=target_size,
+                mode='bilinear',
+                align_corners=False
+            )
+
+        return cropped
+
+    def forward(self, features: List[torch.Tensor]) -> torch.Tensor:
+        """
+        Gated fusion with FOV alignment.
+
+        Args:
+            features: List of [2μm, 8μm, 32μm, ...] features, each (B, C, H, W)
+                      First element is assumed to be 2μm (finest scale)
+
+        Returns:
+            Fused features (B, C, H, W) at 2μm resolution
         """
         assert len(features) == self.num_scales
 
-        output = torch.zeros_like(features[0])
+        # Target size is the finest scale (2μm)
+        target = features[0]
+        target_size = target.shape[-2:]
+
+        output = torch.zeros_like(target)
 
         for i, feat in enumerate(features):
-            gate = self.gates[i](feat)  # (B, C)
+            scale_name = self.scale_names[i]
+            scale_factor = self.SCALE_FACTORS.get(scale_name, 1)
+
+            # Align coarse features to 2μm FOV via center-crop
+            aligned_feat = self._center_crop_and_resize(
+                feat, scale_factor, target_size
+            )
+
+            # Compute gate from aligned features
+            gate = self.gates[i](aligned_feat)  # (B, C)
             gate = gate.unsqueeze(-1).unsqueeze(-1)  # (B, C, 1, 1)
-            output = output + gate * feat
+
+            output = output + gate * aligned_feat
 
         return output
 

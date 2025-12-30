@@ -162,9 +162,137 @@ def create_loss_fn(args) -> nn.Module:
         raise ValueError(f"Unknown loss: {args.loss}")
 
 
+class IncrementalMetrics:
+    """
+    Compute metrics incrementally to avoid storing all predictions in memory.
+
+    For 1747 patches * 50 genes * 128 * 128 floats * 4 bytes ≈ 5.7 GB,
+    storing all predictions would be problematic for scaling.
+
+    Instead, we accumulate running statistics:
+    - SSIM: Compute per-batch, accumulate mean
+    - PCC: Accumulate per-gene statistics (sum, sum_sq, n)
+    - MSE/MAE: Running mean
+    """
+
+    def __init__(self, n_genes: int = 50, sample_genes: int = 10):
+        self.n_genes = n_genes
+        self.sample_genes = min(sample_genes, n_genes)
+        self.reset()
+
+    def reset(self):
+        self.n_samples = 0
+        self.ssim_sum = 0.0
+        self.ssim_count = 0
+        self.mse_sum = 0.0
+        self.mae_sum = 0.0
+        self.count = 0
+
+        # Per-gene PCC accumulators (using sufficient statistics)
+        self.gene_sum_p = np.zeros(self.n_genes)
+        self.gene_sum_t = np.zeros(self.n_genes)
+        self.gene_sum_pp = np.zeros(self.n_genes)
+        self.gene_sum_tt = np.zeros(self.n_genes)
+        self.gene_sum_pt = np.zeros(self.n_genes)
+        self.gene_n = np.zeros(self.n_genes)
+
+    def update(self, pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor):
+        """
+        Update running statistics with a batch.
+
+        Args:
+            pred: (B, G, H, W)
+            target: (B, G, H, W)
+            mask: (B, 1, H, W)
+        """
+        pred_np = pred.detach().cpu().numpy()
+        target_np = target.detach().cpu().numpy()
+        mask_np = mask.detach().cpu().numpy()
+
+        B, G, H, W = pred_np.shape
+        self.n_samples += B
+
+        # SSIM: Sample genes for speed, compute per-image
+        for b in range(B):
+            for g in range(self.sample_genes):
+                p = pred_np[b, g]
+                t = target_np[b, g]
+
+                # Normalize to [0, 1]
+                p_range = p.max() - p.min()
+                t_range = t.max() - t.min()
+                if p_range > 1e-6 and t_range > 1e-6:
+                    p_norm = (p - p.min()) / p_range
+                    t_norm = (t - t.min()) / t_range
+
+                    try:
+                        s = ssim_metric(p_norm, t_norm, data_range=1.0)
+                        if not np.isnan(s):
+                            self.ssim_sum += s
+                            self.ssim_count += 1
+                    except:
+                        pass
+
+        # MSE and MAE
+        m = mask_np > 0.5
+        m_expanded = np.broadcast_to(m, pred_np.shape)
+        if m_expanded.sum() > 0:
+            diff = pred_np[m_expanded] - target_np[m_expanded]
+            self.mse_sum += (diff ** 2).sum()
+            self.mae_sum += np.abs(diff).sum()
+            self.count += m_expanded.sum()
+
+        # PCC: Accumulate sufficient statistics per gene
+        for g in range(G):
+            m_g = mask_np[:, 0].flatten() > 0.5
+            if m_g.sum() > 0:
+                p_flat = pred_np[:, g].flatten()[m_g]
+                t_flat = target_np[:, g].flatten()[m_g]
+
+                self.gene_sum_p[g] += p_flat.sum()
+                self.gene_sum_t[g] += t_flat.sum()
+                self.gene_sum_pp[g] += (p_flat ** 2).sum()
+                self.gene_sum_tt[g] += (t_flat ** 2).sum()
+                self.gene_sum_pt[g] += (p_flat * t_flat).sum()
+                self.gene_n[g] += len(p_flat)
+
+    def compute(self) -> Dict[str, float]:
+        """Compute final metrics from accumulated statistics."""
+        metrics = {}
+
+        # SSIM
+        metrics['ssim'] = self.ssim_sum / max(self.ssim_count, 1)
+
+        # MSE and MAE
+        metrics['mse'] = self.mse_sum / max(self.count, 1)
+        metrics['mae'] = self.mae_sum / max(self.count, 1)
+
+        # PCC per gene using sufficient statistics
+        # PCC = (n*sum_pt - sum_p*sum_t) / sqrt((n*sum_pp - sum_p^2) * (n*sum_tt - sum_t^2))
+        pccs = []
+        for g in range(self.n_genes):
+            n = self.gene_n[g]
+            if n > 10:
+                num = n * self.gene_sum_pt[g] - self.gene_sum_p[g] * self.gene_sum_t[g]
+                var_p = n * self.gene_sum_pp[g] - self.gene_sum_p[g] ** 2
+                var_t = n * self.gene_sum_tt[g] - self.gene_sum_t[g] ** 2
+
+                if var_p > 1e-10 and var_t > 1e-10:
+                    pcc = num / (np.sqrt(var_p) * np.sqrt(var_t))
+                    if not np.isnan(pcc):
+                        pccs.append(np.clip(pcc, -1, 1))
+
+        metrics['pcc'] = np.mean(pccs) if pccs else 0.0
+
+        return metrics
+
+
 def compute_metrics(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> Dict[str, float]:
     """
-    Compute evaluation metrics.
+    Compute evaluation metrics (legacy function for small datasets).
+
+    NOTE: For large datasets, use IncrementalMetrics instead to avoid OOM.
+    This function stores all predictions in memory.
 
     Args:
         pred: Predictions (B, G, H, W)

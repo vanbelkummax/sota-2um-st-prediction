@@ -192,17 +192,28 @@ class FocalZINBLoss(nn.Module):
 
     Uses ZINB for proper count modeling, adds focal weighting to
     focus on harder predictions.
+
+    IMPORTANT: Focal weighting is based on the NLL itself, NOT L1 error.
+    ZINB predicts distribution parameters (μ, θ, π), not scalar values.
+    Using L1 error between mean (μ) and count is noisy because even a
+    perfect model has high L1 error due to Poisson noise.
+
+    Focal weight = (1 - exp(-nll))^γ
+    - High NLL = hard example → weight ≈ 1
+    - Low NLL = easy example → weight → 0
     """
 
     def __init__(
         self,
         n_genes: int = 50,
         gamma: float = 2.0,
-        eps: float = 1e-10
+        eps: float = 1e-10,
+        nll_clamp: float = 10.0  # Clamp NLL to prevent extreme weights
     ):
         super().__init__()
         self.zinb = ZINBLoss(n_genes=n_genes, eps=eps)
         self.gamma = gamma
+        self.nll_clamp = nll_clamp
 
     def forward(
         self,
@@ -240,9 +251,11 @@ class FocalZINBLoss(nn.Module):
             torch.log(prob_nonzero + self.zinb.eps)
         )
 
-        # Focal weighting based on prediction difficulty
-        pred_error = (mu_safe - target).abs()
-        focal_weight = torch.pow(1 - torch.exp(-pred_error), self.gamma)
+        # Focal weighting based on NLL (difficulty measure)
+        # Higher NLL = harder prediction = higher weight
+        # Clamp NLL to prevent extreme weights
+        nll_clamped = torch.clamp(nll, max=self.nll_clamp)
+        focal_weight = torch.pow(1 - torch.exp(-nll_clamped), self.gamma)
 
         weighted_nll = focal_weight * nll
 

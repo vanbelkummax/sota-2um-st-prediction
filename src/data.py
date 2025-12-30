@@ -5,14 +5,15 @@ Multi-Scale Spatial Transcriptomics Data Loading
 Efficient data loading for multi-resolution training.
 Uses Linux ext4 paths for speed (NOT /mnt/ NTFS).
 
-Data locations (fast ext4):
-- /home/user/work/encoder-loss-ablation-2um/data/P*_precomputed_labels_v2/
-- /home/user/work/encoder-loss-ablation-2um/data/multiscale/
+Configure paths via environment variables or config file:
+- SOTA_DATA_ROOT: Root directory for labels
+- SOTA_IMAGE_ROOT: Root directory for multi-scale images
 
-Author: Max Van Belkum + Claude Opus 4.5
+Author: Max Van Belkum
 Date: December 2024
 """
 
+import os
 import torch
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
@@ -23,19 +24,55 @@ from typing import Dict, List, Optional, Tuple, Union
 import torchvision.transforms as T
 from concurrent.futures import ThreadPoolExecutor
 import warnings
+import logging
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 
-# CRITICAL: Use Linux ext4 paths for speed
-DATA_ROOT = Path("/home/user/work/encoder-loss-ablation-2um/data")
-IMAGE_ROOT = Path("/home/user/work/encoder-loss-ablation-2um/data/multiscale")
-CONSOLIDATED_ROOT = DATA_ROOT / "consolidated"
+def get_data_root() -> Path:
+    """Get data root from environment or default."""
+    env_path = os.environ.get('SOTA_DATA_ROOT')
+    if env_path:
+        return Path(env_path)
+    # Default paths (can be overridden)
+    default = Path("/home/user/work/encoder-loss-ablation-2um/data")
+    if not default.exists():
+        raise ValueError(
+            f"Data root not found: {default}. "
+            "Set SOTA_DATA_ROOT environment variable or ensure path exists."
+        )
+    return default
 
-# Fallback to original image paths if multiscale not extracted
-ORIGINAL_IMAGE_PATHS = {
-    'P1': Path("/mnt/x/img2st_rotation_demo/downloads/binned_outputs/square_002um/spatial"),
-    'P2': Path("/mnt/x/img2st_rotation_demo/downloads/crc_hd/P2/square_002um/spatial"),
-    'P5': Path("/mnt/x/img2st_rotation_demo/downloads/crc_hd/P5/square_002um/spatial"),
-}
+
+def get_image_root() -> Path:
+    """Get image root from environment or default."""
+    env_path = os.environ.get('SOTA_IMAGE_ROOT')
+    if env_path:
+        return Path(env_path)
+    # Default paths (can be overridden)
+    default = Path("/home/user/work/encoder-loss-ablation-2um/data/multiscale")
+    if not default.exists():
+        raise ValueError(
+            f"Image root not found: {default}. "
+            "Set SOTA_IMAGE_ROOT environment variable or ensure path exists."
+        )
+    return default
+
+
+# Lazy initialization - only resolved when needed
+DATA_ROOT = None
+IMAGE_ROOT = None
+CONSOLIDATED_ROOT = None
+
+
+def _init_paths():
+    """Initialize paths lazily."""
+    global DATA_ROOT, IMAGE_ROOT, CONSOLIDATED_ROOT
+    if DATA_ROOT is None:
+        DATA_ROOT = get_data_root()
+        IMAGE_ROOT = get_image_root()
+        CONSOLIDATED_ROOT = DATA_ROOT / "consolidated"
 
 
 class MultiScaleSTDataset(Dataset):
@@ -54,14 +91,16 @@ class MultiScaleSTDataset(Dataset):
         self,
         patients: List[str],
         scales: List[str] = ['2um', '8um'],
-        data_root: Path = DATA_ROOT,
-        image_root: Path = IMAGE_ROOT,
+        data_root: Optional[Path] = None,
+        image_root: Optional[Path] = None,
         n_genes: int = 50,
         patch_size: int = 224,
         label_size: int = 128,
         transform: Optional[T.Compose] = None,
         use_cache: bool = True,
-        max_patches_per_patient: Optional[int] = None
+        max_patches_per_patient: Optional[int] = None,
+        max_cache_size: Optional[int] = None,
+        strict_loading: bool = True
     ):
         """
         Initialize multi-scale dataset.
@@ -69,19 +108,26 @@ class MultiScaleSTDataset(Dataset):
         Args:
             patients: List of patient IDs ['P1', 'P2', 'P5']
             scales: List of scales to load ['2um', '8um', '32um']
-            data_root: Root directory for labels (ext4)
-            image_root: Root directory for images (ext4)
+            data_root: Root directory for labels (or set SOTA_DATA_ROOT env var)
+            image_root: Root directory for images (or set SOTA_IMAGE_ROOT env var)
             n_genes: Number of genes
             patch_size: Image patch size (224)
             label_size: Label array size (128)
             transform: Image transforms
             use_cache: Cache labels in memory
             max_patches_per_patient: Limit patches for debugging
+            max_cache_size: Maximum number of labels to cache (prevents OOM)
+            strict_loading: If True, raise exceptions on load failures instead of returning zeros
         """
+        # Initialize paths from environment if not provided
+        _init_paths()
+
         self.patients = patients
         self.scales = scales
-        self.data_root = Path(data_root)
-        self.image_root = Path(image_root)
+        self.data_root = Path(data_root) if data_root else DATA_ROOT
+        self.image_root = Path(image_root) if image_root else IMAGE_ROOT
+        self.strict_loading = strict_loading
+        self.max_cache_size = max_cache_size
         self.n_genes = n_genes
         self.patch_size = patch_size
         self.label_size = label_size
@@ -229,9 +275,14 @@ class MultiScaleSTDataset(Dataset):
                 img = self.transform(img)
                 result['images'][scale] = img
             except Exception as e:
-                warnings.warn(f"Failed to load image {img_path}: {e}")
-                # Return zero tensor as fallback
-                result['images'][scale] = torch.zeros(3, self.patch_size, self.patch_size)
+                error_msg = f"Failed to load image {img_path}: {e}"
+                if self.strict_loading:
+                    raise IOError(error_msg)
+                else:
+                    logger.warning(error_msg)
+                    # Return None to signal failure (handle in collate_fn)
+                    result['images'][scale] = None
+                    result['_load_failed'] = True
 
         # Load labels
         label_file = patch_info['label_file']
@@ -242,11 +293,22 @@ class MultiScaleSTDataset(Dataset):
         else:
             try:
                 labels_2um = np.load(label_file)
+                # Respect max_cache_size to prevent OOM
                 if self.use_cache:
-                    self._label_cache[cache_key] = labels_2um
+                    if self.max_cache_size is None or len(self._label_cache) < self.max_cache_size:
+                        self._label_cache[cache_key] = labels_2um
             except Exception as e:
-                warnings.warn(f"Failed to load labels {label_file}: {e}")
-                labels_2um = np.zeros((self.label_size, self.label_size, self.n_genes))
+                error_msg = f"Failed to load labels {label_file}: {e}"
+                if self.strict_loading:
+                    raise IOError(error_msg)
+                else:
+                    logger.warning(error_msg)
+                    labels_2um = None
+                    result['_load_failed'] = True
+
+        # Handle failed label load
+        if labels_2um is None:
+            labels_2um = np.zeros((self.label_size, self.label_size, self.n_genes))
 
         # Convert to (G, H, W) format
         if labels_2um.shape[-1] == self.n_genes:
