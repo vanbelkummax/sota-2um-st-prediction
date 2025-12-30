@@ -373,6 +373,10 @@ def train_epoch(
     optimizer.zero_grad()
 
     for batch_idx, batch in enumerate(pbar):
+        # Skip failed batches (from collate_filter_failed)
+        if batch is None:
+            continue
+
         # Prepare inputs
         images = {scale: batch['images'][scale].to(device)
                   for scale in args.scales if scale in batch['images']}
@@ -440,16 +444,24 @@ def evaluate(
     device: torch.device,
     args
 ) -> Dict[str, float]:
-    """Evaluate model."""
+    """
+    Evaluate model using incremental metrics to avoid OOM.
+
+    Memory-efficient: Uses IncrementalMetrics instead of storing all predictions.
+    For 1747 patches this avoids 5.7GB memory allocation.
+    """
     model.eval()
 
-    all_preds = []
-    all_targets = []
-    all_masks = []
+    # Use incremental metrics to avoid storing all predictions
+    metrics_accumulator = IncrementalMetrics(n_genes=50)
     total_loss = 0.0
     n_batches = 0
 
     for batch in tqdm(loader, desc="Evaluating"):
+        # Skip failed batches (from collate_filter_failed)
+        if batch is None:
+            continue
+
         images = {scale: batch['images'][scale].to(device)
                   for scale in args.scales if scale in batch['images']}
         labels = batch['labels_2um'].to(device)
@@ -477,18 +489,12 @@ def evaluate(
         total_loss += loss.item()
         n_batches += 1
 
-        all_preds.append(pred.cpu())
-        all_targets.append(labels.cpu())
-        all_masks.append(mask.cpu())
+        # Update incremental metrics (no list storage!)
+        metrics_accumulator.update(pred, labels, mask)
 
-    # Concatenate all batches
-    all_preds = torch.cat(all_preds, dim=0)
-    all_targets = torch.cat(all_targets, dim=0)
-    all_masks = torch.cat(all_masks, dim=0)
-
-    # Compute metrics
-    metrics = compute_metrics(all_preds, all_targets, all_masks)
-    metrics['val_loss'] = total_loss / n_batches
+    # Compute final metrics from accumulated statistics
+    metrics = metrics_accumulator.compute()
+    metrics['val_loss'] = total_loss / max(n_batches, 1)
 
     return metrics
 

@@ -510,12 +510,49 @@ def extract_multiscale_patches(
     print(f"Done! Patches saved to {output_dir / patient}")
 
 
+def collate_filter_failed(batch: List[Dict]) -> Optional[Dict]:
+    """
+    Custom collate function that filters out failed samples.
+
+    When strict_loading=False in MultiScaleSTDataset, failed samples have
+    '_load_failed': True. This collate function:
+    1. Filters out failed samples
+    2. Returns None if entire batch failed (caller must handle this)
+    3. Uses default_collate on remaining valid samples
+
+    Args:
+        batch: List of sample dicts from __getitem__
+
+    Returns:
+        Collated batch dict, or None if all samples failed
+    """
+    from torch.utils.data.dataloader import default_collate
+
+    # Filter out failed samples
+    valid_batch = [b for b in batch if b is not None and not b.get('_load_failed', False)]
+
+    if not valid_batch:
+        # All samples in batch failed - return None (caller must handle)
+        logger.warning(f"Entire batch failed to load ({len(batch)} samples)")
+        return None
+
+    if len(valid_batch) < len(batch):
+        logger.debug(f"Filtered {len(batch) - len(valid_batch)} failed samples from batch")
+
+    # Remove internal flag before collating
+    for b in valid_batch:
+        b.pop('_load_failed', None)
+
+    return default_collate(valid_batch)
+
+
 def create_dataloaders(
     train_patients: List[str],
     test_patient: str,
     scales: List[str] = ['2um', '8um'],
     batch_size: int = 8,
-    num_workers: int = 8
+    num_workers: int = 8,
+    strict_loading: bool = True
 ) -> Tuple[DataLoader, DataLoader]:
     """
     Create train and test dataloaders.
@@ -526,6 +563,7 @@ def create_dataloaders(
         scales: Scales to load
         batch_size: Batch size
         num_workers: DataLoader workers
+        strict_loading: If True, raise on load failures. If False, filter failed samples.
 
     Returns:
         train_loader, test_loader
@@ -533,14 +571,19 @@ def create_dataloaders(
     train_dataset = MultiScaleSTDataset(
         patients=train_patients,
         scales=scales,
-        use_cache=True
+        use_cache=True,
+        strict_loading=strict_loading
     )
 
     test_dataset = MultiScaleSTDataset(
         patients=[test_patient],
         scales=scales,
-        use_cache=True
+        use_cache=True,
+        strict_loading=strict_loading
     )
+
+    # Use custom collate if non-strict (filters failed samples)
+    collate_fn = None if strict_loading else collate_filter_failed
 
     train_loader = DataLoader(
         train_dataset,
@@ -548,7 +591,8 @@ def create_dataloaders(
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
-        drop_last=True
+        drop_last=True,
+        collate_fn=collate_fn
     )
 
     test_loader = DataLoader(
@@ -556,7 +600,8 @@ def create_dataloaders(
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        pin_memory=True
+        pin_memory=True,
+        collate_fn=collate_fn
     )
 
     return train_loader, test_loader
